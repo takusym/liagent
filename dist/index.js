@@ -6,7 +6,7 @@ import { i as silenceFor, n as isQuiet } from "./speak-rules-DLSfNlSD.js";
 import { r as preferredVoice, t as chooseVoice } from "./voice-pick-CKunvwiO.js";
 import { connectHub } from "./client.js";
 import { L as postStt, f as vadFromScripts } from "./mic-audio-BBu8YIab.js";
-import { d as micSession, i as dictate, n as MicElement, r as defineMic } from "./mic-button-Dl46Rh6-.js";
+import { d as micSession, i as dictate, n as MicElement, r as defineMic } from "./mic-button-DbQ03EZQ.js";
 import { f as createVoice, m as pickNaturalVoice, v as voice, y as voiceQuality } from "./voice-veqNSiXB.js";
 
 export { APPROVAL_MS, BUSY_AFTER_REPLY_MS, BUSY_MS, CHAT_HISTORY, CHAT_MS, ChatBox, DEBOUNCE_MS, EVAL_GRANT_MS, MAX_AGENT_ID, MAX_CHAT, MAX_CODE, MAX_EDITS, MAX_LABEL, MAX_NODE_PATH, MAX_RESULT, MicElement, OWNER_NAME, PAGES_GONE_MS, PAGE_DEBOUNCE_MS, PENDING_MS, ROOT_NODE, StateTreeElement, agentIdOf, applyEdit, assigneeOf, chatText, chooseVoice, cleanLabel, commonAncestor, compile, completeNode, connectHub, countOpen, createVoice, crumbs, defineChatBox, defineMic, defineStateTree, dictate, dictatedDraft, draftSource, filterNeedsOwner, findLinks, frontier, frontierLines, isPageId, isQuiet, isWithin, lineNode, liveTreeSource, loadTree, localeChain, matchesTarget, mayAddress, micSession, nodeHue, nodePath, overlayProgress, parseAddress, parseControllerMessage, parsePageMessage, parseTree, parseTreeDoc, pathLabel, pickLang, pickNaturalVoice, pickVoice, postStt, preferredVoice, progressFeed, routeTo, shortCode, silenceFor, summarize, trimHistory, vadFromScripts, voice, voiceQuality, watchTree };

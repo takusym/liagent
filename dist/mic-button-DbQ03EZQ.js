@@ -99,6 +99,8 @@ function createMicSession(deps, from) {
 	};
 	const fallback = deps.fallback;
 	let prev = "off";
+	/** The explicit off's cleanup while it runs (shared by a second off; toggle and resume wait for it). */
+	let teardown = null;
 	/** The last audio frame's time (0: none yet). */
 	let lastFrame = 0;
 	const mic = createMic({
@@ -214,20 +216,29 @@ function createMicSession(deps, from) {
 		voice: () => voice,
 		async toggle() {
 			emit({ error: null });
+			if (teardown) await teardown;
 			if (mic.state() === "off") {
 				store.on();
 				await mic.toggle();
 			} else await session.off();
 		},
 		async off() {
+			if (teardown) return teardown;
 			store.clear();
 			emit({ resume: false });
 			epoch++;
-			try {
-				await mic.off();
-			} finally {
-				stopStream();
-			}
+			const own = stream;
+			stream = null;
+			teardown = (async () => {
+				try {
+					await mic.off();
+				} finally {
+					for (const t of own?.getTracks() ?? []) t.stop();
+				}
+			})().finally(() => {
+				teardown = null;
+			});
+			return teardown;
 		},
 		hold: (on) => mic.hold(on),
 		lastFrameAt: () => lastFrame,
@@ -704,4 +715,4 @@ function defineMic(tag = "liagent-mic") {
 
 //#endregion
 export { isDictationTarget as a, MIC_SESSION_KEY as c, micSession as d, dictate as i, MIC_SESSION_V as l, MicElement as n, micLabel as o, defineMic as r, MIC_ON_KEY as s, MIC_STRINGS_EN as t, createMicSession as u };
-//# sourceMappingURL=mic-button-Dl46Rh6-.js.map
+//# sourceMappingURL=mic-button-DbQ03EZQ.js.map
