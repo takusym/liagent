@@ -1,5 +1,5 @@
 import { APPROVAL_MS, BUSY_AFTER_REPLY_MS, BUSY_MS, CHAT_HISTORY, CHAT_MS, EVAL_GRANT_MS, MAX_AGENT_ID, MAX_CHAT, MAX_CODE, MAX_EDITS, MAX_LABEL, MAX_NODE_PATH, MAX_RESULT, PAGES_GONE_MS, PAGE_DEBOUNCE_MS, PENDING_MS, ROOT_NODE, agentIdOf, applyEdit, chatText, cleanLabel, commonAncestor, compile, completeNode, dictatedDraft, draftSource, isPageId, isWithin, lineNode, matchesTarget, mayAddress, nodeHue, nodePath, parseAddress, parseControllerMessage, parsePageMessage, pathLabel, pickLang, pickVoice, routeTo, shortCode, summarize, trimHistory } from "./protocol.js";
-import { n as defineChatBox, t as ChatBox, u as DEBOUNCE_MS } from "./box-cWk1IB3b.js";
+import { n as defineChatBox, t as ChatBox, u as DEBOUNCE_MS } from "./box-B915pXXJ.js";
 import { a as filterNeedsOwner, c as localeChain, i as crumbs, l as parseTree, n as assigneeOf, o as findLinks, r as countOpen, s as frontier, t as OWNER_NAME, u as parseTreeDoc } from "./state-tree-BZCmAknI.js";
 import { a as frontierLines, c as watchTree, i as defineStateTree, m as progressFeed, n as StateTreeElement, o as liveTreeSource, p as overlayProgress, s as loadTree } from "./tree-BrR7NwMf.js";
 import { i as silenceFor, n as isQuiet } from "./speak-rules-DLSfNlSD.js";
