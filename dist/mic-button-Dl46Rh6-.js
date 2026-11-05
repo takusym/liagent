@@ -1,4 +1,4 @@
-import { D as appendDictation, F as micErrorNote, I as micStatus, L as postStt, O as createMic, V as scheduleTick, a as canCapture, d as sileroVad, f as vadFromScripts, g as MIC_ERROR_STRINGS_EN, i as audioCtx, l as micStream, o as energyVad, s as existingCtx } from "./mic-audio-BzA-NpwQ.js";
+import { D as appendDictation, F as micErrorNote, I as micStatus, L as postStt, O as createMic, V as scheduleTick, a as canCapture, d as sileroVad, f as vadFromScripts, g as MIC_ERROR_STRINGS_EN, i as audioCtx, l as micStream, o as energyVad, s as existingCtx } from "./mic-audio-BBu8YIab.js";
 
 //#region src/mic-session.ts
 /**
@@ -159,6 +159,9 @@ function createMicSession(deps, from) {
 			sink?.onPending(n, interim);
 		},
 		onError: (e) => emit({ error: e }),
+		onRecover: () => {
+			if (view.error?.name === "MicStalledError") emit({ error: null });
+		},
 		onFrameBeat: (at) => {
 			lastFrame = at;
 			deps.onFrameBeat?.(at);
@@ -344,9 +347,10 @@ var NoStt = class extends Error {
 	}
 };
 /** The browser side of the page's session, made by the first element to connect. */
-function browserDeps(storageKey) {
+function browserDeps(storageKey, stallMs) {
 	const ss = () => globalThis.sessionStorage;
 	return {
+		...stallMs !== void 0 ? { stallMs } : {},
 		getStream: (c) => micStream(c?.aec ?? true),
 		load: (ev, s, c) => c?.vad ? sileroVad(ev, s, c.vad) : Promise.reject(/* @__PURE__ */ new Error("no VAD source")),
 		fallback: (ev, s) => energyVad(ev, s),
@@ -467,6 +471,16 @@ var MicElement = class extends Base {
 	get storageKey() {
 		return this.getAttribute("storage-key") || MIC_ON_KEY;
 	}
+	/**
+	* Attribute stall-ms: no audio this long while listening shows the "stalled"
+	* note (default STALL_MS; 0 turns the check off). Read when the page's
+	* session is made (the first element to connect).
+	*/
+	get stallMs() {
+		const v = this.getAttribute("stall-ms");
+		const n = v === null ? NaN : Number(v);
+		return Number.isFinite(n) && n >= 0 ? n : void 0;
+	}
 	set storageKey(v) {
 		this.setAttribute("storage-key", v);
 	}
@@ -545,7 +559,7 @@ var MicElement = class extends Base {
 			return;
 		}
 		this.build();
-		const s = this._session = micSession(browserDeps(this.storageKey));
+		const s = this._session = micSession(browserDeps(this.storageKey, this.stallMs));
 		s.configure(this.config());
 		if (this._voice !== void 0) s.setVoice(this._voice);
 		this.off.push(s.subscribe((v) => this.render(v)), s.attach({
@@ -690,4 +704,4 @@ function defineMic(tag = "liagent-mic") {
 
 //#endregion
 export { isDictationTarget as a, MIC_SESSION_KEY as c, micSession as d, dictate as i, MIC_SESSION_V as l, MicElement as n, micLabel as o, defineMic as r, MIC_ON_KEY as s, MIC_STRINGS_EN as t, createMicSession as u };
-//# sourceMappingURL=mic-button-YIlHqyWe.js.map
+//# sourceMappingURL=mic-button-Dl46Rh6-.js.map

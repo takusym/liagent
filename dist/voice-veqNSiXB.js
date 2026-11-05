@@ -1,7 +1,7 @@
 import { pickLang } from "./protocol.js";
 import { a as speechRate } from "./speech-rate-DXeJjRTc.js";
 import { a as watchVoices, i as readingLang, n as createVoicePicker } from "./voice-pick-CKunvwiO.js";
-import { k as encodeWav, s as existingCtx } from "./mic-audio-BzA-NpwQ.js";
+import { k as encodeWav, s as existingCtx } from "./mic-audio-BBu8YIab.js";
 import { a as echoScore, r as ECHO_WINDOW_MS } from "./echo-BQF2eImg.js";
 
 //#region src/voice-out.ts
@@ -811,4 +811,4 @@ function voice(opts) {
 
 //#endregion
 export { aecOn as C, createCloudOut as D, cloudSkip as E, outMode as O, VOICE_OUT_KEY as S, cloudReady as T, speechEnabled as _, DUCK_LEVEL as a, RESUME_REWIND_S as b, RESUME_TAIL_MS as c, chunk as d, createVoice as f, speakHere as g, sentences as h, DUCK_ATTACK_MS as i, ttsUrlFrom as k, SPEAK_KEY as l, pickNaturalVoice as m, BARGE_IN_PROB as n, DUCK_RELEASE_MS as o, isBargeIn as p, CHUNK_MAX as r, IDLE_RESUME_MS as s, BARGE_IN_MS as t, VOICE_SESSION_KEY as u, voice as v, cloudOut as w, VOICE_AEC_KEY as x, voiceQuality as y };
-//# sourceMappingURL=voice-X9T9sZvw.js.map
+//# sourceMappingURL=voice-veqNSiXB.js.map

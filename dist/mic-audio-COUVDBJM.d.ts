@@ -63,7 +63,8 @@ type MicErrorStrings = {
   signIn: string;
   tooMuch: string; /** `{status}` is replaced by the HTTP status. */
   failed: string; /** `{message}` is replaced by the error's message. */
-  other: string;
+  other: string; /** No audio from the mic for a while (MicStalledError); cleared when audio comes back. */
+  stalled: string;
 };
 declare const MIC_ERROR_STRINGS_EN: MicErrorStrings;
 /** The short note by the button for an error. */
@@ -174,7 +175,8 @@ declare function createMic(d: {
   onPending: (n: number, interim: string) => void;
   onError?: (e: unknown) => void; /** Each frame's speech probability while capturing (a voice output's barge-in judge). */
   onProb?: (prob: number) => void; /** Rolling partial chunks for long utterances (on unless false). */
-  partials?: boolean; /** Every audio frame the VAD hands over while on (not held), with its time: a heartbeat. */
+  partials?: boolean; /** Frames flow again after a MicStalledError (the host clears that error). */
+  onRecover?: () => void; /** Every audio frame the VAD hands over while on (not held), with its time: a heartbeat. */
   onFrameBeat?: (at: number) => void;
   /**
    * No frame for this long while listening (not held): onError gets a
@@ -323,4 +325,4 @@ declare function sileroVad(ev: VadEvents, stream: MediaStream, src: VadSource): 
 declare function energyVad(ev: VadEvents, stream: MediaStream): Promise<Vad>;
 //#endregion
 export { punctuate as $, STALL_MS as A, VadEvents as B, MicState as C, PARTIAL_OVERLAP_MS as D, PARTIAL_MIN_MS as E, TICK_MS as F, energyGate as G, appendDictation as H, TickContext as I, joinText as J, isDictationBurst as K, UploadInfo as L, SttRequest as M, SttResult as N, PENDING_MARK as O, TICK_GAIN as P, postStt as Q, UtteranceQueue as R, MicErrorStrings as S, PARTIAL_EVERY_MS as T, createMic as U, VadFactory as V, encodeWav as W, micErrorNote as X, mergeOverlap as Y, micStatus as Z, vadFromScripts as _, VadLoader as a, MAX_UTTERANCE_MS as b, appliedSettings as c, energyVad as d, resample as et, existingCtx as f, sileroVad as g, noteTrack as h, VadConfig as i, SttError as j, RATE as k, audioCtx as l, micStream as m, LEGACY_CONSTRAINTS as n, scheduleTick as nt, VadSource as o, micConstraints as p, isMicDenied as q, MicVADLike as r, sttUrl as rt, VadWebModule as s, AEC_CONSTRAINTS as t, rms as tt, canCapture as u, AUTO_SEND_MIN as v, MicStatus as w, MIC_ERROR_STRINGS_EN as x, ENDS_SENTENCE as y, Vad as z };
-//# sourceMappingURL=mic-audio-Q_7VoQnJ.d.ts.map
+//# sourceMappingURL=mic-audio-COUVDBJM.d.ts.map

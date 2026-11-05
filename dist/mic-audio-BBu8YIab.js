@@ -54,7 +54,8 @@ const MIC_ERROR_STRINGS_EN = {
 	signIn: "Sign in to use the mic",
 	tooMuch: "Too much speech for now; try again in a minute",
 	failed: "Transcription failed ({status})",
-	other: "Mic: {message}"
+	other: "Mic: {message}",
+	stalled: "The mic stopped sending audio"
 };
 /** The short note by the button for an error. */
 function micErrorNote(e, t = MIC_ERROR_STRINGS_EN) {
@@ -65,6 +66,7 @@ function micErrorNote(e, t = MIC_ERROR_STRINGS_EN) {
 	const n = nameOf(e);
 	if (n === "NotAllowedError" || n === "SecurityError") return s.denied;
 	if (n === "NotFoundError") return s.noMic;
+	if (n === "MicStalledError") return s.stalled;
 	if (e instanceof SttError) {
 		if (e.status === 401) return s.signIn;
 		if (e.status === 429) return s.tooMuch;
@@ -344,6 +346,7 @@ function createMic(d) {
 	const toSamples = (ms) => ms * RATE / 1e3;
 	const stallMs = d.stallMs ?? STALL_MS;
 	let dog;
+	let stalled = false;
 	/** The stall watchdog: (re)armed by each frame; fires once until frames flow again. */
 	const watch = () => {
 		clearTimer(dog);
@@ -352,7 +355,10 @@ function createMic(d) {
 		const g = gen;
 		dog = setTimer(() => {
 			dog = void 0;
-			if (g === gen && !held && (state === "listening" || state === "capturing")) d.onError?.(Object.assign(/* @__PURE__ */ new Error(`mic stalled: no audio for ${Math.round(stallMs / 1e3)} s`), { name: "MicStalledError" }));
+			if (g === gen && !held && (state === "listening" || state === "capturing")) {
+				stalled = true;
+				d.onError?.(Object.assign(/* @__PURE__ */ new Error(`mic stalled: no audio for ${Math.round(stallMs / 1e3)} s`), { name: "MicStalledError" }));
+			}
 		}, stallMs);
 	};
 	const set = (s) => {
@@ -360,6 +366,7 @@ function createMic(d) {
 		if (s === "off") {
 			clearTimer(dog);
 			dog = void 0;
+			stalled = false;
 		}
 		d.onState(s);
 	};
@@ -416,6 +423,10 @@ function createMic(d) {
 		onFrame(frame, prob) {
 			if (g !== gen || held) return;
 			d.onFrameBeat?.(Date.now());
+			if (stalled) {
+				stalled = false;
+				d.onRecover?.();
+			}
 			watch();
 			if (state !== "capturing") return;
 			if (prob !== void 0) d.onProb?.(prob);
@@ -808,4 +819,4 @@ async function energyVad(ev, stream) {
 
 //#endregion
 export { energyGate as A, rms as B, SttError as C, appendDictation as D, UtteranceQueue as E, micErrorNote as F, sttUrl as H, micStatus as I, postStt as L, isMicDenied as M, joinText as N, createMic as O, mergeOverlap as P, punctuate as R, STALL_MS as S, TICK_MS as T, scheduleTick as V, PARTIAL_EVERY_MS as _, canCapture as a, PENDING_MARK as b, micConstraints as c, sileroVad as d, vadFromScripts as f, MIC_ERROR_STRINGS_EN as g, MAX_UTTERANCE_MS as h, audioCtx as i, isDictationBurst as j, encodeWav as k, micStream as l, ENDS_SENTENCE as m, LEGACY_CONSTRAINTS as n, energyVad as o, AUTO_SEND_MIN as p, appliedSettings as r, existingCtx as s, AEC_CONSTRAINTS as t, noteTrack as u, PARTIAL_MIN_MS as v, TICK_GAIN as w, RATE as x, PARTIAL_OVERLAP_MS as y, resample as z };
-//# sourceMappingURL=mic-audio-BzA-NpwQ.js.map
+//# sourceMappingURL=mic-audio-BBu8YIab.js.map

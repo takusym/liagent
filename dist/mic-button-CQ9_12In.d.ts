@@ -1,4 +1,4 @@
-import { B as VadEvents, C as MicState, L as UploadInfo, N as SttResult, S as MicErrorStrings, o as VadSource, w as MicStatus, z as Vad } from "./mic-audio-Q_7VoQnJ.js";
+import { B as VadEvents, C as MicState, L as UploadInfo, N as SttResult, S as MicErrorStrings, o as VadSource, w as MicStatus, z as Vad } from "./mic-audio-COUVDBJM.js";
 
 //#region src/mic-session.d.ts
 /** globalThis key of the session. */
@@ -214,6 +214,12 @@ declare class MicElement extends Base {
   get lang(): string;
   set lang(v: string);
   get storageKey(): string;
+  /**
+   * Attribute stall-ms: no audio this long while listening shows the "stalled"
+   * note (default STALL_MS; 0 turns the check off). Read when the page's
+   * session is made (the first element to connect).
+   */
+  get stallMs(): number | undefined;
   set storageKey(v: string);
   /** Echo-cancelled barge-in (default: on unless localStorage `liagent:voice-aec` is "0"; `aec="off"` turns it off). */
   get aec(): boolean;
@@ -248,4 +254,4 @@ declare class MicElement extends Base {
 declare function defineMic(tag?: string): typeof MicElement;
 //#endregion
 export { createMicSession as C, VoiceLinkState as S, MicView as _, MicStrings as a, StreamLike as b, dictate as c, MIC_ON_KEY as d, MIC_SESSION_KEY as f, MicSink as g, MicSession as h, MicElement as i, isDictationTarget as l, MicDeps as m, MIC_STRINGS_EN as n, SttHandler as o, MIC_SESSION_V as p, MicConfig as r, defineMic as s, DictationTarget as t, micLabel as u, MicVoiceLink as v, micSession as w, Utterance as x, ResumeOutcome as y };
-//# sourceMappingURL=mic-button-k2YoI3Bg.d.ts.map
+//# sourceMappingURL=mic-button-CQ9_12In.d.ts.map
