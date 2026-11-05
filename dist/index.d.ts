@@ -4,8 +4,8 @@ import { a as defineChatBox, r as ChatBox } from "./box-CjpPotvR.js";
 import { i as chooseVoice, o as preferredVoice, r as VoicePreference } from "./voice-pick-BL3ttnwt.js";
 import { i as isQuiet, n as Silence, o as silenceFor, r as SpeakMeta } from "./speak-rules-C7HEK7mJ.js";
 import { HubConnection, HubOptions, connectHub } from "./client.js";
-import { Z as postStt, _ as vadFromScripts, i as VadConfig, o as VadSource } from "./mic-audio-CxDpbJGf.js";
-import { a as MicStrings, c as dictate, i as MicElement, o as SttHandler, s as defineMic, t as DictationTarget, v as MicVoiceLink, w as micSession } from "./mic-button-DwmBe1nt.js";
+import { Q as postStt, _ as vadFromScripts, i as VadConfig, o as VadSource } from "./mic-audio-Q_7VoQnJ.js";
+import { a as MicStrings, c as dictate, i as MicElement, o as SttHandler, s as defineMic, t as DictationTarget, v as MicVoiceLink, w as micSession } from "./mic-button-k2YoI3Bg.js";
 import { A as voice, E as pickNaturalVoice, I as OutMode, _ as Voice, b as VoiceOptions, j as voiceQuality, v as VoiceHook, w as createVoice, x as VoiceState, z as TtsSource } from "./voice-J7V61A7D.js";
 
 //#region src/input.d.ts

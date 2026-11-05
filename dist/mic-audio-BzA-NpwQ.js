@@ -12,6 +12,8 @@
 */
 /** Longest utterance: past this it is cut and sent, and listening goes on. */
 const MAX_UTTERANCE_MS = 3e4;
+/** No audio frame for this long while listening counts as a stalled mic (createMic stallMs). */
+const STALL_MS = 5e3;
 /** The VADs hand over 16 kHz mono. */
 const RATE = 16e3;
 /** Partials: one every PARTIAL_EVERY_MS of speech, once it is PARTIAL_MIN_MS long… */
@@ -340,8 +342,25 @@ function createMic(d) {
 	let ctl = Promise.resolve();
 	const toMs = (n) => Math.round(n / RATE * 1e3);
 	const toSamples = (ms) => ms * RATE / 1e3;
+	const stallMs = d.stallMs ?? STALL_MS;
+	let dog;
+	/** The stall watchdog: (re)armed by each frame; fires once until frames flow again. */
+	const watch = () => {
+		clearTimer(dog);
+		dog = void 0;
+		if (stallMs <= 0 || held || state !== "listening" && state !== "capturing") return;
+		const g = gen;
+		dog = setTimer(() => {
+			dog = void 0;
+			if (g === gen && !held && (state === "listening" || state === "capturing")) d.onError?.(Object.assign(/* @__PURE__ */ new Error(`mic stalled: no audio for ${Math.round(stallMs / 1e3)} s`), { name: "MicStalledError" }));
+		}, stallMs);
+	};
 	const set = (s) => {
 		state = s;
+		if (s === "off") {
+			clearTimer(dog);
+			dog = void 0;
+		}
 		d.onState(s);
 	};
 	const pending = () => d.onPending(q.pending(), q.interim());
@@ -395,7 +414,10 @@ function createMic(d) {
 			cap = setTimer(() => void vad?.flush(), MAX_UTTERANCE_MS);
 		},
 		onFrame(frame, prob) {
-			if (g !== gen || state !== "capturing") return;
+			if (g !== gen || held) return;
+			d.onFrameBeat?.(Date.now());
+			watch();
+			if (state !== "capturing") return;
 			if (prob !== void 0) d.onProb?.(prob);
 			live.push(frame);
 			liveLen += frame.length;
@@ -430,6 +452,11 @@ function createMic(d) {
 			}).finally(report);
 		}
 	});
+	const quietly = async (f) => {
+		try {
+			await f();
+		} catch {}
+	};
 	const on = async () => {
 		const g = ++gen;
 		partialsOn = d.partials !== false;
@@ -439,22 +466,37 @@ function createMic(d) {
 			v = await d.load(events(g));
 		} catch (e) {
 			if (!d.fallback || isMicDenied(e)) {
-				if (g === gen) set("off");
-				d.onError?.(e);
+				if (g === gen) {
+					set("off");
+					d.onError?.(e);
+				}
 				return;
 			}
 			try {
 				v = await d.fallback(events(g));
 			} catch (e2) {
-				if (g === gen) set("off");
-				d.onError?.(e2);
+				if (g === gen) {
+					set("off");
+					d.onError?.(e2);
+				}
 				return;
 			}
 		}
-		if (g !== gen) return void v.destroy();
+		if (g !== gen) return void await quietly(() => v.destroy());
 		vad = v;
-		if (!held) await v.start();
+		if (!held) try {
+			await v.start();
+		} catch (e) {
+			if (g !== gen) return;
+			vad = null;
+			await quietly(() => v.destroy());
+			set("off");
+			d.onError?.(e);
+			return;
+		}
+		if (g !== gen) return;
 		set("listening");
+		watch();
 	};
 	async function off() {
 		if (state === "off") return;
@@ -467,8 +509,8 @@ function createMic(d) {
 		resetLive();
 		set("off");
 		if (v) {
-			await v.flush();
-			await v.destroy();
+			await quietly(() => v.flush());
+			await quietly(() => v.destroy());
 		}
 		if (reserved !== null) {
 			cur = reserved;
@@ -490,6 +532,7 @@ function createMic(d) {
 			dropCur();
 			if (state === "capturing") set("listening");
 		}
+		watch();
 		const v = vad;
 		if (v) ctl = ctl.then(() => on ? v.pause() : v.start()).catch(() => {});
 	}
@@ -702,10 +745,24 @@ async function sileroVad(ev, stream, src) {
 		start: () => v.start(),
 		pause: () => v.pause(),
 		flush: async () => {
-			await v.pause();
-			await v.start();
+			try {
+				await v.pause();
+				await v.start();
+			} catch {}
 		},
-		destroy: () => v.destroy()
+		destroy: async () => {
+			try {
+				await v.destroy();
+			} catch {
+				const raw = v;
+				try {
+					await raw.model?.release?.();
+				} catch {}
+				try {
+					if (raw.ownsAudioContext) await raw._audioContext?.close?.();
+				} catch {}
+			}
+		}
 	};
 }
 /** The fallback: an energy threshold on the raw signal (energyGate), on the session's stream. */
@@ -750,5 +807,5 @@ async function energyVad(ev, stream) {
 }
 
 //#endregion
-export { isDictationBurst as A, scheduleTick as B, TICK_GAIN as C, createMic as D, appendDictation as E, micStatus as F, postStt as I, punctuate as L, joinText as M, mergeOverlap as N, encodeWav as O, micErrorNote as P, resample as R, SttError as S, UtteranceQueue as T, sttUrl as V, PARTIAL_EVERY_MS as _, canCapture as a, PENDING_MARK as b, micConstraints as c, sileroVad as d, vadFromScripts as f, MIC_ERROR_STRINGS_EN as g, MAX_UTTERANCE_MS as h, audioCtx as i, isMicDenied as j, energyGate as k, micStream as l, ENDS_SENTENCE as m, LEGACY_CONSTRAINTS as n, energyVad as o, AUTO_SEND_MIN as p, appliedSettings as r, existingCtx as s, AEC_CONSTRAINTS as t, noteTrack as u, PARTIAL_MIN_MS as v, TICK_MS as w, RATE as x, PARTIAL_OVERLAP_MS as y, rms as z };
-//# sourceMappingURL=mic-audio-Cjoq2AxZ.js.map
+export { energyGate as A, rms as B, SttError as C, appendDictation as D, UtteranceQueue as E, micErrorNote as F, sttUrl as H, micStatus as I, postStt as L, isMicDenied as M, joinText as N, createMic as O, mergeOverlap as P, punctuate as R, STALL_MS as S, TICK_MS as T, scheduleTick as V, PARTIAL_EVERY_MS as _, canCapture as a, PENDING_MARK as b, micConstraints as c, sileroVad as d, vadFromScripts as f, MIC_ERROR_STRINGS_EN as g, MAX_UTTERANCE_MS as h, audioCtx as i, isDictationBurst as j, encodeWav as k, micStream as l, ENDS_SENTENCE as m, LEGACY_CONSTRAINTS as n, energyVad as o, AUTO_SEND_MIN as p, appliedSettings as r, existingCtx as s, AEC_CONSTRAINTS as t, noteTrack as u, PARTIAL_MIN_MS as v, TICK_GAIN as w, RATE as x, PARTIAL_OVERLAP_MS as y, resample as z };
+//# sourceMappingURL=mic-audio-BzA-NpwQ.js.map

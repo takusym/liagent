@@ -1,4 +1,4 @@
-import { C as MicState, I as UploadInfo, M as SttResult, R as Vad, S as MicErrorStrings, o as VadSource, w as MicStatus, z as VadEvents } from "./mic-audio-CxDpbJGf.js";
+import { B as VadEvents, C as MicState, L as UploadInfo, N as SttResult, S as MicErrorStrings, o as VadSource, w as MicStatus, z as Vad } from "./mic-audio-Q_7VoQnJ.js";
 
 //#region src/mic-session.d.ts
 /** globalThis key of the session. */
@@ -88,7 +88,9 @@ type MicDeps<C = unknown> = {
   upload: (wav: Uint8Array, info: UploadInfo, cfg: C | undefined) => Promise<string>;
   onState?: (s: MicState, prev: MicState) => void; /** Each final utterance, after its echo check. */
   onUtterance?: (u: Utterance, cfg: C | undefined) => void; /** A reload's resume attempt, once it is decided. */
-  onResume?: (r: ResumeOutcome) => void; /** sessionStorage, guarded (iOS private mode throws). */
+  onResume?: (r: ResumeOutcome) => void; /** Every audio frame while listening (a heartbeat; not throttled). session.lastFrameAt() polls it instead. */
+  onFrameBeat?: (at: number) => void; /** No frame this long while listening: view.error gets a MicStalledError (default STALL_MS, 0 = off). */
+  stallMs?: number; /** sessionStorage, guarded (iOS private mode throws). */
   storage?: {
     get(k: string): string | null;
     set(k: string, v: string): void;
@@ -121,7 +123,8 @@ declare function createMicSession<C = unknown>(deps: MicDeps<C>, from?: {
   voice: () => MicVoiceLink | null; /** A tap: on (remembered for a reload), or an explicit off. */
   toggle(): Promise<void>; /** The explicit off: the VAD, the stream and the reload flag all go. */
   off(): Promise<void>;
-  hold: (on: boolean) => void;
+  hold: (on: boolean) => void; /** When the last audio frame arrived (ms since epoch; 0 if none): a heartbeat to poll. */
+  lastFrameAt: () => number;
   /**
    * Replaced by a newer session: the VAD goes, the stream stays (the new
    * session builds its VAD on it).
@@ -245,4 +248,4 @@ declare class MicElement extends Base {
 declare function defineMic(tag?: string): typeof MicElement;
 //#endregion
 export { createMicSession as C, VoiceLinkState as S, MicView as _, MicStrings as a, StreamLike as b, dictate as c, MIC_ON_KEY as d, MIC_SESSION_KEY as f, MicSink as g, MicSession as h, MicElement as i, isDictationTarget as l, MicDeps as m, MIC_STRINGS_EN as n, SttHandler as o, MIC_SESSION_V as p, MicConfig as r, defineMic as s, DictationTarget as t, micLabel as u, MicVoiceLink as v, micSession as w, Utterance as x, ResumeOutcome as y };
-//# sourceMappingURL=mic-button-DwmBe1nt.d.ts.map
+//# sourceMappingURL=mic-button-k2YoI3Bg.d.ts.map

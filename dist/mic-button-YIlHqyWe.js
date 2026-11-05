@@ -1,4 +1,4 @@
-import { B as scheduleTick, D as createMic, E as appendDictation, F as micStatus, I as postStt, P as micErrorNote, a as canCapture, d as sileroVad, f as vadFromScripts, g as MIC_ERROR_STRINGS_EN, i as audioCtx, l as micStream, o as energyVad, s as existingCtx } from "./mic-audio-Cjoq2AxZ.js";
+import { D as appendDictation, F as micErrorNote, I as micStatus, L as postStt, O as createMic, V as scheduleTick, a as canCapture, d as sileroVad, f as vadFromScripts, g as MIC_ERROR_STRINGS_EN, i as audioCtx, l as micStream, o as energyVad, s as existingCtx } from "./mic-audio-BzA-NpwQ.js";
 
 //#region src/mic-session.ts
 /**
@@ -84,11 +84,42 @@ function createMicSession(deps, from) {
 		for (const t of stream?.getTracks() ?? []) t.stop();
 		stream = null;
 	};
+	/** Bumped by every off: a stream that arrives after an off is stopped, never used. */
+	let epoch = 0;
+	const cancelled = () => Object.assign(/* @__PURE__ */ new Error("mic turned off while starting"), { name: "AbortError" });
+	const freshStream = async () => {
+		const e = epoch;
+		const s = await ensureStream();
+		if (e !== epoch) {
+			for (const t of s.getTracks()) t.stop();
+			if (stream === s) stream = null;
+			throw cancelled();
+		}
+		return s;
+	};
 	const fallback = deps.fallback;
 	let prev = "off";
+	/** The last audio frame's time (0: none yet). */
+	let lastFrame = 0;
 	const mic = createMic({
-		load: async (ev) => deps.load(ev, await ensureStream(), cfg),
-		fallback: fallback ? async (ev) => fallback(ev, await ensureStream(), cfg) : void 0,
+		load: async (ev) => {
+			const e = epoch;
+			const s = await freshStream();
+			try {
+				return await deps.load(ev, s, cfg);
+			} finally {
+				if (e !== epoch) for (const t of s.getTracks()) t.stop();
+			}
+		},
+		fallback: fallback ? async (ev) => {
+			const e = epoch;
+			const s = await freshStream();
+			try {
+				return await fallback(ev, s, cfg);
+			} finally {
+				if (e !== epoch) for (const t of s.getTracks()) t.stop();
+			}
+		} : void 0,
 		upload: async (wav, info) => {
 			const text = await deps.upload(wav, info, cfg);
 			const echo = text && voice?.echoCheck ? voice.echoCheck(text, info.durationMs) : void 0;
@@ -111,6 +142,7 @@ function createMicSession(deps, from) {
 				state: s,
 				...s !== "off" ? { resume: false } : {}
 			});
+			if (s === "off" && was === "loading") stopStream();
 			if (voice) {
 				voice.setMic(s !== "off");
 				if (s === "capturing") voice.userSpeech();
@@ -127,6 +159,11 @@ function createMicSession(deps, from) {
 			sink?.onPending(n, interim);
 		},
 		onError: (e) => emit({ error: e }),
+		onFrameBeat: (at) => {
+			lastFrame = at;
+			deps.onFrameBeat?.(at);
+		},
+		...deps.stallMs !== void 0 ? { stallMs: deps.stallMs } : {},
 		onProb: (p) => voice?.userFrame?.(p)
 	});
 	const session = {
@@ -182,10 +219,15 @@ function createMicSession(deps, from) {
 		async off() {
 			store.clear();
 			emit({ resume: false });
-			await mic.off();
-			stopStream();
+			epoch++;
+			try {
+				await mic.off();
+			} finally {
+				stopStream();
+			}
 		},
 		hold: (on) => mic.hold(on),
+		lastFrameAt: () => lastFrame,
 		async retire() {
 			unvoice?.();
 			unvoice = null;
@@ -648,4 +690,4 @@ function defineMic(tag = "liagent-mic") {
 
 //#endregion
 export { isDictationTarget as a, MIC_SESSION_KEY as c, micSession as d, dictate as i, MIC_SESSION_V as l, MicElement as n, micLabel as o, defineMic as r, MIC_ON_KEY as s, MIC_STRINGS_EN as t, createMicSession as u };
-//# sourceMappingURL=mic-button-DDEPpsmR.js.map
+//# sourceMappingURL=mic-button-YIlHqyWe.js.map
