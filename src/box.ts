@@ -87,7 +87,10 @@
 //     (true if it went out).
 //   - box.micActive = true (or the mic-active attribute) counts as focus: the
 //     log opens and the box goes opaque; while it is on, and while a partial
-//     shows, the debounce never sends by itself.
+//     shows, nothing sends by itself (neither the debounce nor a pasted or
+//     dictated sentence).
+//   - box.hold = true (or the hold attribute) keeps the draft the same way
+//     without the mic look; Enter and box.submit() still send.
 //   - box.voice = { speak(text, id?), stop(why?) } reads replies aloud instead
 //     of speechSynthesis; typing calls voice.stop("typing"). box.speechRate is
 //     the menu's speed for it to apply. Without it, box.voicePrefer =
@@ -119,7 +122,7 @@ import {
   pickLang,
   trimHistory,
 } from "./protocol.ts";
-import { DEBOUNCE_MS, afterChange, enterSends, lineBreakSends, partialTail } from "./input.ts";
+import { DEBOUNCE_MS, afterChange, autoSend, enterSends, lineBreakSends, partialTail } from "./input.ts";
 import { TREE_STRINGS_EN, type TreeSource, type TreeStrings, watchTree } from "./tree.ts";
 import { type TreeNode, frontier } from "./state-tree.ts";
 import { type AvatarSrc, type Sender, avatarColors, initialOf, lineAvatar } from "./avatar.ts";
@@ -531,7 +534,7 @@ type FloatLife = ReturnType<typeof createFloatLife>;
 /** The chat box element. Plain properties in, callbacks out; see the file header. */
 export class ChatBox extends Base {
   static get observedAttributes() {
-    return ["mic-active"];
+    return ["mic-active", "hold"];
   }
   /**
    * Called with each draft that goes out, and the state-tree node it is
@@ -610,6 +613,7 @@ export class ChatBox extends Base {
   private pure: string | null = null;
   private _partial = "";
   private _micActive = false;
+  private _hold = false;
   /** The input has focus: the log opens. */
   private typing = false;
   /** The mark is held: the input shows how to use it. */
@@ -884,8 +888,25 @@ export class ChatBox extends Base {
     if (typeof this.toggleAttribute === "function") this.toggleAttribute("mic-active", !!v);
     else this.applyMic(!!v);
   }
+  /**
+   * Hold the person's draft: nothing goes out by itself (no debounce, no
+   * sentence-jump send), with no mic look. Enter and submit() still send. Attribute: hold.
+   */
+  get hold() {
+    return this._hold;
+  }
+  set hold(v: boolean) {
+    if (typeof this.toggleAttribute === "function") this.toggleAttribute("hold", !!v);
+    else this.applyHold(!!v);
+  }
   attributeChangedCallback(name: string) {
     if (name === "mic-active") this.applyMic(this.hasAttribute("mic-active"));
+    else if (name === "hold") this.applyHold(this.hasAttribute("hold"));
+  }
+  private applyHold(v: boolean) {
+    if (v === this._hold) return;
+    this._hold = v;
+    this.arm();
   }
   private applyMic(v: boolean) {
     if (v === this._micActive) return;
@@ -987,6 +1008,7 @@ export class ChatBox extends Base {
     const userName = this.getAttribute("user-name");
     if (userName && !this._user.name) this._user.name = userName;
     this._micActive = this.hasAttribute("mic-active");
+    this._hold = this.hasAttribute("hold");
     const o = this.read("open");
     this.open = o === null ? this._defaultOpen : o === "1";
     this.wasOpen = this.open;
@@ -1539,11 +1561,13 @@ export class ChatBox extends Base {
     this.disarm();
     // An "@/node" still being typed never goes out by the debounce.
     if (parseAddress(this._draft)?.complete === false) return;
-    const next = afterChange(this._draft, this.settledLen, this.composing);
+    const raw = afterChange(this._draft, this.settledLen, this.composing);
     if (!this.composing) this.settledLen = this._draft.length;
+    // While a mic is on, a transcript is still coming in or the draft is held, nothing goes
+    // out by itself: not the debounce, and not a jump that ends a sentence (a paste).
+    const next = autoSend(raw, { mic: this._micActive, partial: !!this._partial, hold: this._hold });
     if (next === "send") return void this.submit();
-    // While a mic is on or a transcript is still coming in, nothing goes out by itself.
-    if (next === "idle" || this._micActive || this._partial) return;
+    if (next === "idle") return;
     // A fresh bar on each keystroke drains for the debounce.
     const bar = document.createElement("div");
     bar.className = "drain";
