@@ -1,5 +1,5 @@
 import { BUSY_AFTER_REPLY_MS, BUSY_MS, MAX_ATTACHMENTS, MAX_CHAT, ROOT_NODE, applyEdit, cleanFileName, completeNode, dictatedDraft, draftSource, lineNode, mergeContext, nodePath, parseAddress, pathLabel, pickLang, trimHistory } from "./protocol.js";
-import { A as countBadge, B as FLOAT_MAX, C as createLongPress, D as LONG_PRESS_MS, E as FRONTIER_ROWS, Et as oneLine, G as createArrivals, I as placeBox, J as dwellMs, M as shortId, N as shownAgentId, S as createDragFlag, Tt as menuGroups, W as countUnread, Y as minimizeFloat, bt as actionsAt, ct as isVisible, g as wheelPixels, h as splitScroll, ht as stillAtEnd, i as silenceFor, it as dragOffset, j as frontierView, l as treeDefaults, lt as maxDetent, mt as repinEnd, ot as indexTree, p as createSwipeHandoff, q as createFloatLife, r as pageHidden, rt as dragCells, st as initialNav, t as RETIRED_SETTINGS, u as uiStrings, ut as treeNav, w as createTapper, x as createAxisLock, yt as actionEnabled, z as FADE_MS } from "./speak-rules-D1IrDMFt.js";
+import { A as countBadge, B as FLOAT_MAX, C as createLongPress, D as LONG_PRESS_MS, Dt as oneLine, E as FRONTIER_ROWS, Et as menuGroups, G as createArrivals, I as placeBox, J as dwellMs, M as shortId, N as shownAgentId, S as createDragFlag, W as countUnread, Y as minimizeFloat, bt as actionEnabled, ct as isVisible, g as wheelPixels, h as splitScroll, ht as repinEnd, i as silenceFor, it as dragOffset, j as frontierView, l as treeDefaults, lt as maxDetent, mt as atEndAfter, ot as indexTree, p as createSwipeHandoff, q as createFloatLife, r as pageHidden, rt as dragCells, st as initialNav, t as RETIRED_SETTINGS, u as uiStrings, ut as treeNav, w as createTapper, x as createAxisLock, xt as actionsAt, z as FADE_MS } from "./speak-rules-D7KXeUgA.js";
 import { o as aecOn, s as applyAec } from "./aec-Dn6DDsp2.js";
 import { r as countOpen, s as frontier } from "./state-tree-U_1Vg6uJ.js";
 import { c as watchTree, r as TREE_STRINGS_EN } from "./tree-B01r_N1f.js";
@@ -543,6 +543,8 @@ function renderTreeChips(o) {
 
 //#endregion
 //#region src/box.ts
+/** A scroll this soon after the user's wheel, touch, pointer or key is theirs. */
+const USER_SCROLL_MS = 1e3;
 /** A page's label is "<path> <user agent>": the path and a short device hint. */
 function pageHint(label) {
 	const [path = "", ...rest] = label.split(" ");
@@ -2015,6 +2017,8 @@ var ChatBox = class extends Base {
 		};
 		column.addEventListener("wheel", userScroll, { passive: true });
 		column.addEventListener("touchmove", userScroll, { passive: true });
+		column.addEventListener("pointerdown", userScroll, { passive: true });
+		column.addEventListener("keydown", userScroll, { passive: true });
 		column.addEventListener("transitionend", (e) => {
 			if (e.target !== column) return;
 			if (!this.wide()) this.toEnd();
@@ -2906,10 +2910,12 @@ var ChatBox = class extends Base {
 		if (!c) return;
 		c.classList.toggle("fade", c.scrollHeight > c.clientHeight + 1 || c.scrollTop > 0);
 		const gap = c.scrollHeight - c.scrollTop - c.clientHeight;
-		this.atEnd = stillAtEnd({
+		const userScrolled = Date.now() - this.userScrollAt < USER_SCROLL_MS;
+		this.atEnd = atEndAfter({
+			atEnd: this.atEnd,
 			gap,
-			ownPin: this.ownPin && this.atEnd,
-			userScrolled: false
+			clientHeight: c.clientHeight,
+			userScrolled
 		});
 		if (gap < 4) this.ownPin = false;
 	}
@@ -3495,4 +3501,4 @@ function defineChatBox(tag = "liagent-chat") {
 
 //#endregion
 export { avatarColors as a, initialOf as c, memoryFiles as d, when as i, lineAvatar as l, defineChatBox as n, avatarSrcs as o, pageHint as r, hashId as s, ChatBox as t, DEBOUNCE_MS as u };
-//# sourceMappingURL=box-BDPFWxFx.js.map
+//# sourceMappingURL=box-D9LojvQo.js.map

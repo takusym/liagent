@@ -337,6 +337,21 @@ function stillAtEnd(d) {
 	if (d.gap < END_SLACK_PX) return true;
 	return d.ownPin && !d.userScrolled;
 }
+/**
+* Whether the log is at its end after a scroll event or a re-render. Only the
+* user's own scrolling leaves the end: a layout change (history rendered while
+* the box was hidden, a host showing it after mount, the log rebuilt, which
+* clamps scrollTop to 0 for a moment) never does. A log that is not laid out
+* (clientHeight 0) keeps what it had.
+*/
+function atEndAfter(d) {
+	if (!d.clientHeight) return d.atEnd;
+	return stillAtEnd({
+		gap: d.gap,
+		ownPin: d.atEnd && !d.userScrolled,
+		userScrolled: d.userScrolled
+	});
+}
 
 //#endregion
 //#region src/detent.ts
@@ -1268,5 +1283,5 @@ const pageHidden = () => typeof document === "undefined" || document.visibilityS
 const RETIRED_SETTINGS = ["quiet-hours"];
 
 //#endregion
-export { TREE_DRAG_CELLS as $, countBadge as A, FLOAT_MAX as B, createLongPress as C, isSensitive as Ct, LONG_PRESS_MS as D, pageSelection as Dt, FRONTIER_ROWS as E, oneLine as Et, anchorSide as F, createArrivals as G, READ_RATE_CJK as H, placeBox as I, dwellMs as J, createDwellTimer as K, DWELL_FACTOR as L, shortId as M, shownAgentId as N, MAX_ID_LEN as O, readSelection as Ot, ANCHOR_GUTTER_PX as P, TREE_DETENT_PX as Q, DWELL_MIN_MS as R, createDragFlag as S, fileAction as St, scrubBack as T, menuGroups as Tt, READ_RATE_LATIN as U, MINIMIZE_FLOAT_MAX_AGE_MS as V, countUnread as W, readTime as X, minimizeFloat as Y, MAX_DETENT as Z, AXIS_LOCK_PX as _, SELECTION_TTL_MS as _t, TREE_ZH as a, height as at, SCRUB_STEP_PX as b, actionsAt as bt, isZh as c, isVisible as ct, SWIPE_SLOP_PX as d, detentLevel as dt, TREE_HYSTERESIS as et, WHEEL_LINE_PX as f, snapDetent as ft, wheelPixels as g, CHAT_FENCE as gt, splitScroll as h, stillAtEnd as ht, silenceFor as i, dragOffset as it, frontierView as j, SHORT_ID_LEN as k, selectionAction as kt, treeDefaults as l, maxDetent as lt, scrollRoom as m, repinEnd as mt, isQuiet as n, TREE_STRETCH as nt, UI_EN as o, indexTree as ot, createSwipeHandoff as p, END_SLACK_PX as pt, createFloatLife as q, pageHidden as r, dragCells as rt, UI_ZH as s, initialNav as st, RETIRED_SETTINGS as t, TREE_SNAP as tt, uiStrings as u, treeNav as ut, DOUBLE_TAP_MS as v, SENSITIVE as vt, createTapper as w, mediaAction as wt, createAxisLock as x, createSelectionMemory as xt, DRAG_CLICK_MS as y, actionEnabled as yt, FADE_MS as z };
-//# sourceMappingURL=speak-rules-D1IrDMFt.js.map
+export { TREE_DRAG_CELLS as $, countBadge as A, selectionAction as At, FLOAT_MAX as B, createLongPress as C, fileAction as Ct, LONG_PRESS_MS as D, oneLine as Dt, FRONTIER_ROWS as E, menuGroups as Et, anchorSide as F, createArrivals as G, READ_RATE_CJK as H, placeBox as I, dwellMs as J, createDwellTimer as K, DWELL_FACTOR as L, shortId as M, shownAgentId as N, MAX_ID_LEN as O, pageSelection as Ot, ANCHOR_GUTTER_PX as P, TREE_DETENT_PX as Q, DWELL_MIN_MS as R, createDragFlag as S, createSelectionMemory as St, scrubBack as T, mediaAction as Tt, READ_RATE_LATIN as U, MINIMIZE_FLOAT_MAX_AGE_MS as V, countUnread as W, readTime as X, minimizeFloat as Y, MAX_DETENT as Z, AXIS_LOCK_PX as _, CHAT_FENCE as _t, TREE_ZH as a, height as at, SCRUB_STEP_PX as b, actionEnabled as bt, isZh as c, isVisible as ct, SWIPE_SLOP_PX as d, detentLevel as dt, TREE_HYSTERESIS as et, WHEEL_LINE_PX as f, snapDetent as ft, wheelPixels as g, stillAtEnd as gt, splitScroll as h, repinEnd as ht, silenceFor as i, dragOffset as it, frontierView as j, SHORT_ID_LEN as k, readSelection as kt, treeDefaults as l, maxDetent as lt, scrollRoom as m, atEndAfter as mt, isQuiet as n, TREE_STRETCH as nt, UI_EN as o, indexTree as ot, createSwipeHandoff as p, END_SLACK_PX as pt, createFloatLife as q, pageHidden as r, dragCells as rt, UI_ZH as s, initialNav as st, RETIRED_SETTINGS as t, TREE_SNAP as tt, uiStrings as u, treeNav as ut, DOUBLE_TAP_MS as v, SELECTION_TTL_MS as vt, createTapper as w, isSensitive as wt, createAxisLock as x, actionsAt as xt, DRAG_CLICK_MS as y, SENSITIVE as yt, FADE_MS as z };
+//# sourceMappingURL=speak-rules-D7KXeUgA.js.map

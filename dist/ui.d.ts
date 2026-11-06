@@ -486,6 +486,19 @@ declare function stillAtEnd(d: {
   ownPin: boolean;
   userScrolled: boolean;
 }): boolean;
+/**
+ * Whether the log is at its end after a scroll event or a re-render. Only the
+ * user's own scrolling leaves the end: a layout change (history rendered while
+ * the box was hidden, a host showing it after mount, the log rebuilt, which
+ * clamps scrollTop to 0 for a moment) never does. A log that is not laid out
+ * (clientHeight 0) keeps what it had.
+ */
+declare function atEndAfter(d: {
+  atEnd: boolean;
+  gap: number;
+  clientHeight: number;
+  userScrolled: boolean;
+}): boolean;
 //#endregion
-export { ANCHOR_GUTTER_PX, AXIS_LOCK_PX, ActionHost, ActionPlace, AnchorSide, CHAT_FENCE, ChatAction, DEFAULT_SPEECH_RATE, DOUBLE_TAP_MS, DRAG_CLICK_MS, DWELL_FACTOR, DWELL_MIN_MS, DetentFeel, ECHO_MIN_CHARS, ECHO_SIMILARITY, ECHO_WINDOW_MS, END_SLACK_PX, EchoScore, ElLike, FADE_MS, FLOAT_MAX, FRONTIER_ROWS, FileActionOptions, FloatPhase, FrontierLine, FrontierView, LONG_PRESS_MS, MAX_DETENT, MAX_ID_LEN, MINIMIZE_FLOAT_MAX_AGE_MS, NavIndex, PageSelection, READ_RATE_CJK, READ_RATE_LATIN, RETIRED_SETTINGS, SCRUB_STEP_PX, SELECTION_TTL_MS, SENSITIVE, SHORT_ID_LEN, SPEECH_RATES, SPEECH_RATE_KEY, SWIPE_SLOP_PX, ScrollBox, SelectionActionOptions, SelectionDeps, SelectionDoc, SelectionMemory, Silence, SpeakMeta, TREE_DETENT_PX, TREE_DRAG_CELLS, TREE_HYSTERESIS, TREE_SNAP, TREE_STRETCH, TREE_ZH, TreeNavEvent, TreeNavState, UI_EN, UI_ZH, UiStrings, UploadedFile, WHEEL_LINE_PX, actionEnabled, actionsAt, anchorSide, countBadge, countUnread, createArrivals, createAxisLock, createDragFlag, createDwellTimer, createFloatLife, createLongPress, createSelectionMemory, createSwipeHandoff, createTapper, detentLevel, dice, dragCells, dragOffset, dwellMs, echoScore, fileAction, frontierView, grams, height, indexTree, initialNav, isQuiet, isSensitive, isVisible, isZh, maxDetent, mediaAction, menuGroups, minimizeFloat, normalizeEcho, oneLine, pageHidden, pageSelection, placeBox, readSelection, readTime, repinEnd, scrollRoom, scrubBack, selectionAction, setSpeechRate, shortId, shownAgentId, silenceFor, snapDetent, speechRate, splitScroll, stillAtEnd, treeDefaults, treeNav, uiStrings, wheelPixels };
+export { ANCHOR_GUTTER_PX, AXIS_LOCK_PX, ActionHost, ActionPlace, AnchorSide, CHAT_FENCE, ChatAction, DEFAULT_SPEECH_RATE, DOUBLE_TAP_MS, DRAG_CLICK_MS, DWELL_FACTOR, DWELL_MIN_MS, DetentFeel, ECHO_MIN_CHARS, ECHO_SIMILARITY, ECHO_WINDOW_MS, END_SLACK_PX, EchoScore, ElLike, FADE_MS, FLOAT_MAX, FRONTIER_ROWS, FileActionOptions, FloatPhase, FrontierLine, FrontierView, LONG_PRESS_MS, MAX_DETENT, MAX_ID_LEN, MINIMIZE_FLOAT_MAX_AGE_MS, NavIndex, PageSelection, READ_RATE_CJK, READ_RATE_LATIN, RETIRED_SETTINGS, SCRUB_STEP_PX, SELECTION_TTL_MS, SENSITIVE, SHORT_ID_LEN, SPEECH_RATES, SPEECH_RATE_KEY, SWIPE_SLOP_PX, ScrollBox, SelectionActionOptions, SelectionDeps, SelectionDoc, SelectionMemory, Silence, SpeakMeta, TREE_DETENT_PX, TREE_DRAG_CELLS, TREE_HYSTERESIS, TREE_SNAP, TREE_STRETCH, TREE_ZH, TreeNavEvent, TreeNavState, UI_EN, UI_ZH, UiStrings, UploadedFile, WHEEL_LINE_PX, actionEnabled, actionsAt, anchorSide, atEndAfter, countBadge, countUnread, createArrivals, createAxisLock, createDragFlag, createDwellTimer, createFloatLife, createLongPress, createSelectionMemory, createSwipeHandoff, createTapper, detentLevel, dice, dragCells, dragOffset, dwellMs, echoScore, fileAction, frontierView, grams, height, indexTree, initialNav, isQuiet, isSensitive, isVisible, isZh, maxDetent, mediaAction, menuGroups, minimizeFloat, normalizeEcho, oneLine, pageHidden, pageSelection, placeBox, readSelection, readTime, repinEnd, scrollRoom, scrubBack, selectionAction, setSpeechRate, shortId, shownAgentId, silenceFor, snapDetent, speechRate, splitScroll, stillAtEnd, treeDefaults, treeNav, uiStrings, wheelPixels };
 //# sourceMappingURL=ui.d.ts.map
