@@ -1156,6 +1156,9 @@ export class ChatBox extends Base {
     column.addEventListener("scroll", () => this.onColumnScroll());
     column.addEventListener("wheel", () => (this.userScrollAt = Date.now()), { passive: true });
     column.addEventListener("touchmove", () => (this.userScrollAt = Date.now()), { passive: true });
+    // Dragging the scrollbar, or keys (PageUp, arrows, Home) on the focused log.
+    column.addEventListener("pointerdown", () => (this.userScrollAt = Date.now()), { passive: true });
+    column.addEventListener("keydown", () => (this.userScrollAt = Date.now()), { passive: true });
     column.addEventListener("transitionend", (e) => {
       if (e.target !== column) return;
       // Shrunk: land on the newest lines again, now that the height settled.
@@ -1188,9 +1191,13 @@ export class ChatBox extends Base {
             if (ta.clientWidth === width) continue;
             width = ta.clientWidth;
             this.fitInput();
+          } else if (e.target === column) {
+            // Shown or resized (a host showing the box after mount): back to the end.
+            if (this.atEnd) this.toEnd();
           } else this.placeFloat();
         }
       });
+      this.ro.observe(column);
       this.ro.observe(ta);
       this.ro.observe(this.els.floatbox!);
     }
@@ -2054,7 +2061,14 @@ export class ChatBox extends Base {
     const c = this.els.column;
     if (!c) return;
     c.classList.toggle("fade", c.scrollHeight > c.clientHeight + 1 || c.scrollTop > 0);
-    this.atEnd = c.scrollHeight - c.scrollTop - c.clientHeight < 4;
+    // Not laid out yet (hidden host, closed box): nothing to measure.
+    if (!c.clientHeight) return;
+    const gap = c.scrollHeight - c.scrollTop - c.clientHeight;
+    // Only the user's own scrolling leaves the end. A layout change (history
+    // rendered while hidden, the host showing the box later, the log rebuilt)
+    // never does, so the next render or resize lands on the newest line again.
+    if (gap < 4) this.atEnd = true;
+    else if (Date.now() - this.userScrollAt < 1000) this.atEnd = false;
   }
 
   /**
