@@ -2044,7 +2044,9 @@ export class ChatBox extends Base {
           this.renderFloatTexts();
         }),
       );
-      li.append(avatarEl(who.srcs, who.node, who.name, initialOf(who.initialFrom), who.seed), text);
+      // The avatar's own tooltip hides the line's: it leads with the sending time too.
+      const av = avatarEl(who.srcs, who.node, who.name, initialOf(who.initialFrom), who.seed, 0, when(m.at));
+      li.append(av, text);
       log.append(li);
     }
     if (this.open && this.atEnd) this.toEnd();
@@ -2483,6 +2485,7 @@ function avatarEl(
   letter: string,
   seed: string,
   failed = 0,
+  at?: string,
 ): HTMLElement {
   let el: HTMLElement;
   if (failed < srcs.length) {
@@ -2494,7 +2497,7 @@ function avatarEl(
     img.draggable = false;
     img.addEventListener(
       "error",
-      () => img.replaceWith(avatarEl(srcs, node, name, letter, seed, failed + 1)),
+      () => img.replaceWith(avatarEl(srcs, node, name, letter, seed, failed + 1, at)),
       { once: true },
     );
     img.src = srcs[failed]!;
@@ -2512,7 +2515,7 @@ function avatarEl(
     }
   }
   el.className = "av";
-  el.title = name;
+  el.title = at ? `${at} · ${name}` : name;
   el.setAttribute("aria-hidden", "true");
   return el;
 }
