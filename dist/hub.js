@@ -413,6 +413,10 @@ const IDENTITY_HEADERS = {
 const IP_HEADER = "x-liagent-ip";
 /** The header an agent resumes its chat grant with. */
 const TOKEN_HEADER = "x-liagent-token";
+/** ChatHub.preapprove's token: at least this long (a host key, not a short code). */
+const PREAPPROVE_TOKEN_MIN = 32;
+/** ChatHub.preapprove's longest grant (the host extends it as it likes). */
+const PREAPPROVE_MAX_MS = 720 * 60 * 6e4;
 /** A sleeping eval grant's pair id in the pages' state: "g:" + the start of its hash. */
 const DORMANT = "g:";
 const dormantPair = (hash) => `${DORMANT}${hash.slice(0, 40)}`;
@@ -506,7 +510,8 @@ var ChatHub = class {
 		eval: false,
 		friendChatMax: 30,
 		friendWindowMs: 10 * 6e4,
-		logContent: false
+		logContent: false,
+		preapprovedEval: false
 	};
 	/** `{head}` for a log line, only when the hub logs content. */
 	head(text, n = 80) {
@@ -607,6 +612,21 @@ var ChatHub = class {
 		await this.loadGrants();
 		await this.ctx.storage.put(`grant:${hash}`, g);
 		this.grants?.set(hash, g);
+	}
+	/** The user ended a grant: a preapproved one stays ended (ChatHub.preapprove `force`). */
+	async endGrant(hash) {
+		await this.loadGrants();
+		if (this.grants?.get(hash)?.preapproved) await this.ctx.storage.put(`preapproved-ended:${hash}`, this.now());
+		await this.dropGrant(hash);
+	}
+	/** The host ended a grant (ChatHub.unapprove): close what holds it and drop it. */
+	async revokeHash(hash) {
+		for (const c of this.sockets("controller")) if (c.a.grant === hash) {
+			send(c.ws, { type: "revoked" });
+			close(c.ws, 4401, "revoke");
+		}
+		await this.dropGrant(hash);
+		this.broadcast();
 	}
 	async dropGrant(hash) {
 		await this.loadGrants();
@@ -1057,6 +1077,55 @@ var ChatHub = class {
 		if (g) await this.dropGrant(hash);
 		return null;
 	}
+	/**
+	* Preapprove eval (HubOptions.preapprovedEval, with eval): store the owner's
+	* eval grant for `token`, as Allow would, so an agent knocking with that
+	* token (x-liagent-token) resumes it with no prompt. Call it from the host
+	* only, after it has authenticated the agent (its own key) for its own
+	* signed-in owner: liagent cannot tell who holds a token. `ms` (default
+	* EVAL_GRANT_MS, at most PREAPPROVE_MAX_MS) is the grant's life; calling it
+	* again extends it, also on sockets already holding it. End still revokes
+	* it, and a revoked grant is not preapproved again until `force`.
+	* Returns its expiry, or null when the hub does not allow it.
+	*/
+	async preapprove(token, o) {
+		if (!this.opts.eval || !this.opts.preapprovedEval) return null;
+		if (typeof token !== "string" || token.length < PREAPPROVE_TOKEN_MIN || token.length > 256) throw new Error(`preapprove: the token must be ${PREAPPROVE_TOKEN_MIN} to 256 characters`);
+		const t = this.now();
+		const ms = Math.min(Math.max(o.ms ?? EVAL_GRANT_MS, 6e4), PREAPPROVE_MAX_MS);
+		const hash = await hashToken(token);
+		if (await this.ctx.storage.get(`preapproved-ended:${hash}`) && !o.force) return null;
+		if (o.force) await this.ctx.storage.delete(`preapproved-ended:${hash}`);
+		const prev = await this.ctx.storage.get(`grant:${hash}`);
+		const pages = o.pages ?? prev?.pages ?? "all";
+		const until = t + ms;
+		await this.putGrant(hash, {
+			label: cleanLabel(o.label, 80) || "agent",
+			until,
+			scope: "eval",
+			pages,
+			at: prev?.at ?? t,
+			preapproved: true
+		});
+		for (const c of this.sockets("controller")) if (c.a.grant === hash) c.ws.serializeAttachment({
+			...c.a,
+			until,
+			scope: "eval",
+			pages
+		});
+		log({
+			msg: "chat.preapprove",
+			label: o.label,
+			until
+		});
+		this.broadcast();
+		return { until };
+	}
+	/** End a preapproved grant for `token` (the host dropped or changed its key). */
+	async unapprove(token) {
+		const hash = await hashToken(token.slice(0, 256));
+		await this.revokeHash(hash);
+	}
 	/** An eval pairing on one friend's pages: the owner's agent asks, the friend answers. */
 	async pairForFriend(ws, url, key, token, ip) {
 		if (!this.opts.eval) {
@@ -1383,7 +1452,7 @@ var ChatHub = class {
 		if (!found || found[1].scope !== "eval") return send(ws, this.state(page.thread, void 0, page.id));
 		const [hash, g] = found;
 		if (m.type === "revoke") {
-			await this.dropGrant(hash);
+			await this.endGrant(hash);
 			for (const c of this.sockets("controller")) if (c.a.grant === hash) {
 				send(c.ws, { type: "revoked" });
 				close(c.ws, 4401, "revoke");
@@ -1551,7 +1620,7 @@ var ChatHub = class {
 			label: a.label
 		});
 		if (!a.grant) return this.broadcast(ws);
-		return this.dropGrant(a.grant).then(() => this.broadcast(ws));
+		return this.endGrant(a.grant).then(() => this.broadcast(ws));
 	}
 	/** Where an agent's `say` goes: the owner's thread, or a friend's by user id or email. */
 	async sayTarget(to) {
@@ -1829,5 +1898,5 @@ async function routeChat(req, ns, opts) {
 }
 
 //#endregion
-export { ChatHub, FRIEND_MAX_PAGES, FRIEND_RELABEL_MS, GRANT_DEFAULT, GRANT_MAX_MS, IDENTITY_HEADERS, IP_HEADER, MAX_BODY, OWNER_THREAD, PAIR_AUDIENCE_MAX, PAIR_COOLDOWN_MS, PAIR_MAX, PAIR_WINDOW_MS, PROGRESS_READER_HEADER, ProgressHub, RATE, RESOLVED_NOTE, TOKEN_HEADER, chatHub, hashToken, isUserId, pageOriginAllowed, progressGate, progressHub, routeChat, routeProgress };
+export { ChatHub, FRIEND_MAX_PAGES, FRIEND_RELABEL_MS, GRANT_DEFAULT, GRANT_MAX_MS, IDENTITY_HEADERS, IP_HEADER, MAX_BODY, OWNER_THREAD, PAIR_AUDIENCE_MAX, PAIR_COOLDOWN_MS, PAIR_MAX, PAIR_WINDOW_MS, PREAPPROVE_MAX_MS, PREAPPROVE_TOKEN_MIN, PROGRESS_READER_HEADER, ProgressHub, RATE, RESOLVED_NOTE, TOKEN_HEADER, chatHub, hashToken, isUserId, pageOriginAllowed, progressGate, progressHub, routeChat, routeProgress };
 //# sourceMappingURL=hub.js.map
