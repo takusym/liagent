@@ -153,6 +153,13 @@ type HubOptions = {
    * the user and their friends wrote.
    */
   logContent?: boolean;
+  /**
+   * Let the host preapprove eval (`ChatHub.preapprove`): an agent the host
+   * itself authenticated (its own key, never a page) gets the owner's eval
+   * grant with no pairing code and no 8-hour re-approval. Needs `eval`.
+   * Default false. The host decides who: only its own signed-in user.
+   */
+  preapprovedEval?: boolean;
 };
 type Socket = {
   send(data: string): void;
@@ -187,6 +194,10 @@ declare const IDENTITY_HEADERS: {
 declare const IP_HEADER = "x-liagent-ip";
 /** The header an agent resumes its chat grant with. */
 declare const TOKEN_HEADER = "x-liagent-token";
+/** ChatHub.preapprove's token: at least this long (a host key, not a short code). */
+declare const PREAPPROVE_TOKEN_MIN = 32;
+/** ChatHub.preapprove's longest grant (the host extends it as it likes). */
+declare const PREAPPROVE_MAX_MS: number;
 declare const hashToken: (token: string) => Promise<string>;
 /** After the user denies a pairing, that audience takes no new request for this long. */
 declare const PAIR_COOLDOWN_MS = 60000;
@@ -243,6 +254,10 @@ declare class ChatHub {
   private loadingGrants?;
   private loadGrants;
   private putGrant;
+  /** The user ended a grant: a preapproved one stays ended (ChatHub.preapprove `force`). */
+  private endGrant;
+  /** The host ended a grant (ChatHub.unapprove): close what holds it and drop it. */
+  private revokeHash;
   private dropGrant;
   /** Open sockets of one role, optionally leaving one out (the one closing). */
   private sockets;
@@ -306,6 +321,27 @@ declare class ChatHub {
   private knock;
   /** The owner's live grant behind a token, or null (and a lapsed one deleted). */
   private liveGrant;
+  /**
+   * Preapprove eval (HubOptions.preapprovedEval, with eval): store the owner's
+   * eval grant for `token`, as Allow would, so an agent knocking with that
+   * token (x-liagent-token) resumes it with no prompt. Call it from the host
+   * only, after it has authenticated the agent (its own key) for its own
+   * signed-in owner: liagent cannot tell who holds a token. `ms` (default
+   * EVAL_GRANT_MS, at most PREAPPROVE_MAX_MS) is the grant's life; calling it
+   * again extends it, also on sockets already holding it. End still revokes
+   * it, and a revoked grant is not preapproved again until `force`.
+   * Returns its expiry, or null when the hub does not allow it.
+   */
+  preapprove(token: string, o: {
+    label: string;
+    ms?: number;
+    pages?: string[] | "all";
+    force?: boolean;
+  }): Promise<{
+    until: number;
+  } | null>;
+  /** End a preapproved grant for `token` (the host dropped or changed its key). */
+  unapprove(token: string): Promise<void>;
   /** An eval pairing on one friend's pages: the owner's agent asks, the friend answers. */
   private pairForFriend;
   /** Reconnecting with a grant token: chat scope again, no prompt — or 4498 if it is not live. */
@@ -401,5 +437,5 @@ declare function pageOriginAllowed(req: Request, allowed?: readonly string[]): b
  */
 declare function routeChat(req: Request, ns: Namespace, opts: RouteOptions): Promise<Response | null>;
 //#endregion
-export { ChatHub, DOState, FRIEND_MAX_PAGES, FRIEND_RELABEL_MS, FriendRecord, GRANT_DEFAULT, GRANT_MAX_MS, HubOptions, IDENTITY_HEADERS, IP_HEADER, Identity, MAX_BODY, OWNER_THREAD, PAIR_AUDIENCE_MAX, PAIR_COOLDOWN_MS, PAIR_MAX, PAIR_WINDOW_MS, PROGRESS_READER_HEADER, ProgressHub, ProgressHubOptions, ProgressRouteOptions, ProgressState, ProgressStorage, RATE, RESOLVED_NOTE, RouteOptions, Socket, Storage, TOKEN_HEADER, chatHub, hashToken, isUserId, pageOriginAllowed, progressGate, progressHub, routeChat, routeProgress };
+export { ChatHub, DOState, FRIEND_MAX_PAGES, FRIEND_RELABEL_MS, FriendRecord, GRANT_DEFAULT, GRANT_MAX_MS, HubOptions, IDENTITY_HEADERS, IP_HEADER, Identity, MAX_BODY, OWNER_THREAD, PAIR_AUDIENCE_MAX, PAIR_COOLDOWN_MS, PAIR_MAX, PAIR_WINDOW_MS, PREAPPROVE_MAX_MS, PREAPPROVE_TOKEN_MIN, PROGRESS_READER_HEADER, ProgressHub, ProgressHubOptions, ProgressRouteOptions, ProgressState, ProgressStorage, RATE, RESOLVED_NOTE, RouteOptions, Socket, Storage, TOKEN_HEADER, chatHub, hashToken, isUserId, pageOriginAllowed, progressGate, progressHub, routeChat, routeProgress };
 //# sourceMappingURL=hub.d.ts.map

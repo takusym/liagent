@@ -609,7 +609,11 @@ ${TREE_CHIPS_CSS}
 /** The chat box element. Plain properties in, callbacks out; see the file header. */
 var ChatBox = class extends Base {
 	static get observedAttributes() {
-		return ["mic-active", "hold"];
+		return [
+			"mic-active",
+			"hold",
+			"all-pages"
+		];
 	}
 	/**
 	* Called with each draft that goes out, and the state-tree node it is
@@ -690,6 +694,7 @@ var ChatBox = class extends Base {
 	_partial = "";
 	_micActive = false;
 	_hold = false;
+	_allPages = false;
 	/** The input has focus: the log opens. */
 	typing = false;
 	/** The mark is held: the input shows how to use it. */
@@ -972,9 +977,27 @@ var ChatBox = class extends Base {
 		if (typeof this.toggleAttribute === "function") this.toggleAttribute("hold", !!v);
 		else this.applyHold(!!v);
 	}
+	/**
+	* The host grants code on every page of this user (its hub widens Allow to
+	* "all"): the request says so, Allow sends pages "all", and no page ticks
+	* are shown. Attribute: all-pages.
+	*/
+	get allPages() {
+		return this._allPages;
+	}
+	set allPages(v) {
+		if (typeof this.toggleAttribute === "function") this.toggleAttribute("all-pages", !!v);
+		else this.applyAllPages(!!v);
+	}
 	attributeChangedCallback(name) {
 		if (name === "mic-active") this.applyMic(this.hasAttribute("mic-active"));
 		else if (name === "hold") this.applyHold(this.hasAttribute("hold"));
+		else if (name === "all-pages") this.applyAllPages(this.hasAttribute("all-pages"));
+	}
+	applyAllPages(v) {
+		if (v === this._allPages) return;
+		this._allPages = v;
+		this.renderAsks();
 	}
 	applyHold(v) {
 		if (v === this._hold) return;
@@ -1076,6 +1099,7 @@ var ChatBox = class extends Base {
 		if (userName && !this._user.name) this._user.name = userName;
 		this._micActive = this.hasAttribute("mic-active");
 		this._hold = this.hasAttribute("hold");
+		this._allPages = this.hasAttribute("all-pages");
 		const o = this.read("open");
 		this.open = o === null ? this._defaultOpen : o === "1";
 		this.wasOpen = this.open;
@@ -1847,7 +1871,9 @@ var ChatBox = class extends Base {
 		const ask = document.createElement("span");
 		ask.className = "ask";
 		ask.setAttribute("role", "alertdialog");
-		const what = this._friend ? "to run code on the chosen pages, for 1 hour" : p.scope === "eval" ? "to run code on the chosen pages and chat, for 8 hours" : p.scope === "chat" ? "to chat with you, for 30 days" : "to run code on your pages, or to chat";
+		const all = this._allPages && !this._friend;
+		const where = all ? "on all your pages, including pages opened later," : "on the chosen pages";
+		const what = this._friend ? `to run code ${where} for 1 hour` : p.scope === "eval" ? `to run code ${where} and chat, for 8 hours` : p.scope === "chat" ? "to chat with you, for 30 days" : "to run code on your pages, or to chat";
 		const sentence = `${p.label} asks ${what}. Allow only if the agent shows the same code: ${p.code}.`;
 		ask.setAttribute("aria-label", sentence);
 		ask.title = sentence;
@@ -1864,6 +1890,7 @@ var ChatBox = class extends Base {
 		if (!this.picked.has(p.pair)) this.picked.set(p.pair, new Set(this._self ? [this._self] : []));
 		const picked = this.picked.get(p.pair);
 		const pages = () => {
+			if (all) return "all";
 			const cur = this.picked.get(p.pair);
 			if (cur === "all") return "all";
 			return cur && cur.size ? [...cur] : void 0;
@@ -1878,16 +1905,16 @@ var ChatBox = class extends Base {
 			b.addEventListener("click", fn);
 			ask.append(b);
 		};
-		if (p.scope || this._friend) btn("y", "Allow", "Allow on the ticked pages", () => this.onAnswer?.("allow", p, { pages: pages() }));
+		if (p.scope || this._friend) btn("y", "Allow", all ? "Allow on all your pages, including pages opened later" : "Allow on the ticked pages", () => this.onAnswer?.("allow", p, { pages: pages() }));
 		else {
-			btn("y", "8h", "Allow code and chat for 8 hours", () => this.onAnswer?.("allow", p, { pages: pages() }));
+			btn("y", "8h", all ? "Allow code on all your pages and chat, for 8 hours" : "Allow code and chat for 8 hours", () => this.onAnswer?.("allow", p, { pages: pages() }));
 			btn("c", "chat", "Chat only, for 30 days", () => this.onAnswer?.("allow", p, {
 				pages: pages(),
 				scope: "chat"
 			}));
 		}
 		btn("n", "✕", "Deny", () => this.onAnswer?.("deny", p, {}));
-		if (this._pages.length < 2 || p.scope === "chat" && !this._friend) return ask;
+		if (all || this._pages.length < 2 || p.scope === "chat" && !this._friend) return ask;
 		const wrap = document.createElement("div");
 		wrap.className = "askwrap";
 		const list = document.createElement("div");
@@ -1901,8 +1928,8 @@ var ChatBox = class extends Base {
 			l.append(c, document.createTextNode(label));
 			list.append(l);
 		};
-		const all = picked === "all";
-		for (const pg of this._pages) box(`${pageHint(pg.label)}${pg.id === this._self ? " (this page)" : ""}`, all || picked.has(pg.id), (v) => {
+		const allTicked = picked === "all";
+		for (const pg of this._pages) box(`${pageHint(pg.label)}${pg.id === this._self ? " (this page)" : ""}`, allTicked || picked.has(pg.id), (v) => {
 			const cur = this.picked.get(p.pair);
 			const set = cur === "all" ? new Set(this._pages.map((x) => x.id)) : new Set(cur);
 			if (v) set.add(pg.id);
@@ -1910,7 +1937,7 @@ var ChatBox = class extends Base {
 			this.picked.set(p.pair, set);
 			this.renderAsks();
 		});
-		box("all pages, and pages opened later", all, (v) => {
+		box("all pages, and pages opened later", allTicked, (v) => {
 			this.picked.set(p.pair, v ? "all" : new Set(this._self ? [this._self] : []));
 			this.renderAsks();
 		});
@@ -2405,4 +2432,4 @@ function defineChatBox(tag = "liagent-chat") {
 
 //#endregion
 export { avatarColors as a, initialOf as c, when as i, lineAvatar as l, defineChatBox as n, avatarSrcs as o, pageHint as r, hashId as s, ChatBox as t, DEBOUNCE_MS as u };
-//# sourceMappingURL=box-B2C8XKdP.js.map
+//# sourceMappingURL=box-CMRJn8sy.js.map
