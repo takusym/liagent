@@ -102,6 +102,14 @@ declare function lineAvatar(m: ChatMessage, opts: {
 //#region src/box.d.ts
 type AnswerType = "allow" | "deny";
 /**
+ * Where the log is scrolled: null at its newest line, else the line at its
+ * top (by message id) and how many px of that line are scrolled past.
+ */
+type ScrollState = {
+  id: string;
+  dy: number;
+} | null;
+/**
  * What the user chose in a pairing request: the pages to allow (their ids,
  * or "all", including pages that open later), and — for an older agent that
  * did not say which scope it wants — "chat" when they tapped the 30-day chat
@@ -224,6 +232,9 @@ declare class ChatBox extends Base {
   private fileList;
   /** The log's re-pin scrolled it (its own scroll event is not the user's). */
   private ownPin;
+  /** A scroll position to restore once its line is rendered and laid out (scrollState, keep-scroll). */
+  private restoreTo?;
+  private saveTimer?;
   private root?;
   private open;
   private panel;
@@ -562,6 +573,20 @@ declare class ChatBox extends Base {
   private contextNodes;
   private lineText;
   private renderLog;
+  /**
+   * Where the log is scrolled (ScrollState): read it to keep it in your own
+   * storage, set it to go back there (it waits until that line is rendered
+   * and the log is shown; a line that is gone leaves the log at its end).
+   * With the keep-scroll attribute the box keeps it itself, under its
+   * storage-key. A "scroll-state" event (detail: the state) follows the
+   * user's own scrolling.
+   */
+  get scrollState(): ScrollState;
+  set scrollState(v: ScrollState);
+  /** Go to restoreTo if its line is there and the log is laid out; drop it if the line is gone. */
+  private tryRestore;
+  /** The user scrolled: a pending restore is moot; keep and announce the new position. */
+  private scrolledByUser;
   private toEnd;
   private onColumnScroll;
   /** The log or its lines changed size: a log at its end stays there (src/log-pin.ts). */
@@ -601,5 +626,5 @@ declare class ChatBox extends Base {
 }
 declare function defineChatBox(tag?: string): typeof ChatBox;
 //#endregion
-export { FilesListing as _, MicPlacement as a, StoredFile as b, pageHint as c, avatarSrcs as d, hashId as f, FileItemAction as g, ChatFiles as h, ChatVoice as i, when as l, lineAvatar as m, AnswerType as n, TreePlacement as o, initialOf as p, ChatBox as r, defineChatBox as s, Answer as t, avatarColors as u, FilesUsage as v, memoryFiles as x, MemoryFilesOptions as y };
-//# sourceMappingURL=box-BkHMYKwM.d.ts.map
+export { memoryFiles as S, FileItemAction as _, MicPlacement as a, MemoryFilesOptions as b, defineChatBox as c, avatarColors as d, avatarSrcs as f, ChatFiles as g, lineAvatar as h, ChatVoice as i, pageHint as l, initialOf as m, AnswerType as n, ScrollState as o, hashId as p, ChatBox as r, TreePlacement as s, Answer as t, when as u, FilesListing as v, StoredFile as x, FilesUsage as y };
+//# sourceMappingURL=box-DUeErPo_.d.ts.map

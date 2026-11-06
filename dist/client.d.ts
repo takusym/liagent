@@ -1,4 +1,4 @@
-import { r as ChatBox } from "./box-BkHMYKwM.js";
+import { r as ChatBox } from "./box-DUeErPo_.js";
 
 //#region src/client.d.ts
 /** Hidden this long before the socket is dropped. */

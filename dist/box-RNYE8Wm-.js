@@ -1074,6 +1074,9 @@ var ChatBox = class extends Base {
 	fileList = {};
 	/** The log's re-pin scrolled it (its own scroll event is not the user's). */
 	ownPin = false;
+	/** A scroll position to restore once its line is rendered and laid out (scrollState, keep-scroll). */
+	restoreTo;
+	saveTimer;
 	root;
 	open = true;
 	panel = "none";
@@ -1571,6 +1574,10 @@ var ChatBox = class extends Base {
 		if (userName && !this._user.name) this._user.name = userName;
 		this._micActive = this.hasAttribute("mic-active");
 		this._hold = this.hasAttribute("hold");
+		if (this.hasAttribute("keep-scroll")) try {
+			const v = JSON.parse(this.read("scroll") ?? "null");
+			if (v && typeof v.id === "string" && Number.isFinite(v.dy)) this.restoreTo = v;
+		} catch {}
 		this._allPages = this.hasAttribute("all-pages");
 		const o = this.read("open");
 		this.open = o === null ? this._defaultOpen : o === "1";
@@ -2031,7 +2038,10 @@ var ChatBox = class extends Base {
 		mark.addEventListener("click", () => !this.markDrag.wasDrag() && this.taps.tap());
 		this.dragHandle(bar, (e) => e.target === bar);
 		this.treeGestures(treebtn);
-		column.addEventListener("scroll", () => this.onColumnScroll());
+		column.addEventListener("scroll", () => {
+			this.onColumnScroll();
+			if (Date.now() - this.userScrollAt < USER_SCROLL_MS) this.scrolledByUser();
+		});
 		const userScroll = () => {
 			this.userScrollAt = Date.now();
 			this.ownPin = false;
@@ -2097,7 +2107,8 @@ var ChatBox = class extends Base {
 					if (ta.clientWidth === width) continue;
 					width = ta.clientWidth;
 					this.fitInput();
-				} else if (e.target === column || e.target === this.els.log) this.repin();
+				} else if (e.target === column || e.target === this.els.log) if (this.restoreTo !== void 0) this.tryRestore();
+				else this.repin();
 				else this.placeFloat();
 			});
 			this.ro.observe(ta);
@@ -2889,6 +2900,7 @@ var ChatBox = class extends Base {
 		for (const m of this._messages) {
 			const li = document.createElement("li");
 			li.dataset.from = m.from;
+			li.dataset.id = m.id;
 			const who = lineAvatar(m, {
 				friend: this._friend,
 				user: this._user,
@@ -2920,9 +2932,75 @@ var ChatBox = class extends Base {
 			li.append(av, text);
 			log.append(li);
 		}
-		if (this.open && this.atEnd) this.toEnd();
+		if (this.restoreTo !== void 0) this.tryRestore();
+		else if (this.open && this.atEnd) this.toEnd();
 		this.onColumnScroll();
 		this.renderStatus();
+	}
+	/**
+	* Where the log is scrolled (ScrollState): read it to keep it in your own
+	* storage, set it to go back there (it waits until that line is rendered
+	* and the log is shown; a line that is gone leaves the log at its end).
+	* With the keep-scroll attribute the box keeps it itself, under its
+	* storage-key. A "scroll-state" event (detail: the state) follows the
+	* user's own scrolling.
+	*/
+	get scrollState() {
+		if (this.restoreTo !== void 0) return this.restoreTo;
+		const c = this.els.column;
+		if (!c || !c.clientHeight || this.atEnd) return null;
+		const top = c.getBoundingClientRect().top;
+		for (const li of this.els.log.querySelectorAll("li[data-id]")) {
+			const r = li.getBoundingClientRect();
+			if (r.bottom > top) return {
+				id: li.dataset.id,
+				dy: Math.round(top - r.top)
+			};
+		}
+		return null;
+	}
+	set scrollState(v) {
+		if (v === null) {
+			this.restoreTo = void 0;
+			this.atEnd = true;
+			this.toEnd();
+			return;
+		}
+		if (!v || typeof v.id !== "string" || !Number.isFinite(v.dy)) return;
+		this.restoreTo = {
+			id: v.id,
+			dy: v.dy
+		};
+		this.tryRestore();
+	}
+	/** Go to restoreTo if its line is there and the log is laid out; drop it if the line is gone. */
+	tryRestore() {
+		const want = this.restoreTo;
+		const c = this.els.column;
+		if (!want || !c || !this.open || !c.clientHeight) return;
+		const li = [...this.els.log.querySelectorAll("li[data-id]")].find((x) => x.dataset.id === want.id);
+		if (!li) {
+			if (this._messages.length) {
+				this.restoreTo = void 0;
+				this.toEnd();
+			}
+			return;
+		}
+		this.restoreTo = void 0;
+		this.atEnd = false;
+		this.ownPin = false;
+		c.scrollTop += li.getBoundingClientRect().top - c.getBoundingClientRect().top + want.dy;
+		this.onColumnScroll();
+	}
+	/** The user scrolled: a pending restore is moot; keep and announce the new position. */
+	scrolledByUser() {
+		this.restoreTo = void 0;
+		clearTimeout(this.saveTimer);
+		this.saveTimer = setTimeout(() => {
+			const v = this.scrollState;
+			if (this.hasAttribute("keep-scroll")) this.write("scroll", JSON.stringify(v));
+			this.dispatchEvent(new CustomEvent("scroll-state", { detail: v }));
+		}, 200);
 	}
 	toEnd() {
 		const c = this.els.column;
@@ -3526,4 +3604,4 @@ function defineChatBox(tag = "liagent-chat") {
 
 //#endregion
 export { avatarColors as a, initialOf as c, memoryFiles as d, when as i, lineAvatar as l, defineChatBox as n, avatarSrcs as o, pageHint as r, hashId as s, ChatBox as t, DEBOUNCE_MS as u };
-//# sourceMappingURL=box-DCIyAjSH.js.map
+//# sourceMappingURL=box-RNYE8Wm-.js.map
