@@ -2892,7 +2892,8 @@ var ChatBox = class extends Base {
 				this.renderLog();
 				this.renderFloatTexts();
 			}));
-			li.append(avatarEl(who.srcs, who.node, who.name, initialOf(who.initialFrom), who.seed), text);
+			const av = avatarEl(who.srcs, who.node, who.name, initialOf(who.initialFrom), who.seed, 0, when(m.at));
+			li.append(av, text);
 			log.append(li);
 		}
 		if (this.open && this.atEnd) this.toEnd();
@@ -3465,7 +3466,7 @@ function frontierItems(items) {
 * name (alt / aria-label) and titled with it, and aria-hidden: the line's
 * screen-reader text already says who.
 */
-function avatarEl(srcs, node, name, letter, seed, failed = 0) {
+function avatarEl(srcs, node, name, letter, seed, failed = 0, at) {
 	let el;
 	if (failed < srcs.length) {
 		const img = document.createElement("img");
@@ -3474,7 +3475,7 @@ function avatarEl(srcs, node, name, letter, seed, failed = 0) {
 		img.loading = "lazy";
 		img.decoding = "async";
 		img.draggable = false;
-		img.addEventListener("error", () => img.replaceWith(avatarEl(srcs, node, name, letter, seed, failed + 1)), { once: true });
+		img.addEventListener("error", () => img.replaceWith(avatarEl(srcs, node, name, letter, seed, failed + 1, at)), { once: true });
 		img.src = srcs[failed];
 		el = img;
 	} else {
@@ -3490,7 +3491,7 @@ function avatarEl(srcs, node, name, letter, seed, failed = 0) {
 		}
 	}
 	el.className = "av";
-	el.title = name;
+	el.title = at ? `${at} · ${name}` : name;
 	el.setAttribute("aria-hidden", "true");
 	return el;
 }
@@ -3501,4 +3502,4 @@ function defineChatBox(tag = "liagent-chat") {
 
 //#endregion
 export { avatarColors as a, initialOf as c, memoryFiles as d, when as i, lineAvatar as l, defineChatBox as n, avatarSrcs as o, pageHint as r, hashId as s, ChatBox as t, DEBOUNCE_MS as u };
-//# sourceMappingURL=box-D9LojvQo.js.map
+//# sourceMappingURL=box-BtQQxjmX.js.map
