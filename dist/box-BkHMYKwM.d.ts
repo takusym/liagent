@@ -235,6 +235,7 @@ declare class ChatBox extends Base {
   private _partial;
   private _micActive;
   private _hold;
+  private _allPages;
   /** The input has focus: the log opens. */
   private typing;
   /** The mark is held: the input shows how to use it. */
@@ -393,7 +394,15 @@ declare class ChatBox extends Base {
    */
   get hold(): boolean;
   set hold(v: boolean);
+  /**
+   * The host grants code on every page of this user (its hub widens Allow to
+   * "all"): the request says so, Allow sends pages "all", and no page ticks
+   * are shown. Attribute: all-pages.
+   */
+  get allPages(): boolean;
+  set allPages(v: boolean);
   attributeChangedCallback(name: string): void;
+  private applyAllPages;
   private applyHold;
   private applyMic;
   /** Per-device settings live under this prefix (attribute storage-key; default "liagent"). */
@@ -593,4 +602,4 @@ declare class ChatBox extends Base {
 declare function defineChatBox(tag?: string): typeof ChatBox;
 //#endregion
 export { FilesListing as _, MicPlacement as a, StoredFile as b, pageHint as c, avatarSrcs as d, hashId as f, FileItemAction as g, ChatFiles as h, ChatVoice as i, when as l, lineAvatar as m, AnswerType as n, TreePlacement as o, initialOf as p, ChatBox as r, defineChatBox as s, Answer as t, avatarColors as u, FilesUsage as v, memoryFiles as x, MemoryFilesOptions as y };
-//# sourceMappingURL=box-DsA4aRoT.d.ts.map
+//# sourceMappingURL=box-BkHMYKwM.d.ts.map
