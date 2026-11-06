@@ -5,7 +5,7 @@ import { A as ParseOptions, B as frontier, D as FrontierItem, E as FrontierEntry
 import { i as chooseVoice, o as preferredVoice, r as VoicePreference } from "./voice-pick-DPtrhMzI.js";
 import { Y as postStt, dt as applyAec, i as VadSource, it as pageAudio, m as vadFromScripts, n as VadConfig, nt as PageAudio, ot as AEC_EVENT, pt as setAec, ut as aecOn } from "./mic-audio-PZqVq1_z.js";
 import { HubConnection, HubOptions, connectHub } from "./client.js";
-import { T as micSession, a as MicStrings, c as dictate, i as MicElement, o as SttHandler, s as defineMic, t as DictationTarget, y as MicVoiceLink } from "./mic-button-DDugW0xu.js";
+import { T as micSession, a as MicStrings, c as dictate, i as MicElement, o as SttHandler, s as defineMic, t as DictationTarget, y as MicVoiceLink } from "./mic-button-Ca7UMr5o.js";
 import { A as voice, E as pickNaturalVoice, I as OutMode, _ as Voice, b as VoiceOptions, j as voiceQuality, v as VoiceHook, w as createVoice, x as VoiceState, z as TtsSource } from "./voice-B2Oqo4Ue.js";
 
 //#region src/input.d.ts

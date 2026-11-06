@@ -268,6 +268,17 @@ function createMicSession(deps, from) {
 			});
 			return teardown;
 		},
+		async retry() {
+			emit({ error: null });
+			const done = session.off();
+			const my = ++taps;
+			await done;
+			if (my !== taps) return;
+			if (mic.state() === "off") {
+				store.on();
+				await mic.toggle();
+			}
+		},
 		hold: (on) => mic.hold(on),
 		lastFrameAt: () => lastFrame,
 		setPageHold(on) {
@@ -807,4 +818,4 @@ function defineMic(tag = "liagent-mic") {
 
 //#endregion
 export { isDictationTarget as a, MIC_ON_KEY as c, createMicSession as d, micSession as f, dictate as i, MIC_SESSION_KEY as l, MicElement as n, micLabel as o, defineMic as r, micLive as s, MIC_STRINGS_EN as t, MIC_SESSION_V as u };
-//# sourceMappingURL=mic-button-BvuaKUE4.js.map
+//# sourceMappingURL=mic-button-BYp4oKWX.js.map
