@@ -1209,6 +1209,8 @@ var ChatBox = class extends Base {
 		column.addEventListener("scroll", () => this.onColumnScroll());
 		column.addEventListener("wheel", () => this.userScrollAt = Date.now(), { passive: true });
 		column.addEventListener("touchmove", () => this.userScrollAt = Date.now(), { passive: true });
+		column.addEventListener("pointerdown", () => this.userScrollAt = Date.now(), { passive: true });
+		column.addEventListener("keydown", () => this.userScrollAt = Date.now(), { passive: true });
 		column.addEventListener("transitionend", (e) => {
 			if (e.target !== column) return;
 			if (!this.wide()) this.toEnd();
@@ -1235,8 +1237,11 @@ var ChatBox = class extends Base {
 					if (ta.clientWidth === width) continue;
 					width = ta.clientWidth;
 					this.fitInput();
+				} else if (e.target === column) {
+					if (this.atEnd) this.toEnd();
 				} else this.placeFloat();
 			});
+			this.ro.observe(column);
 			this.ro.observe(ta);
 			this.ro.observe(this.els.floatbox);
 		}
@@ -1990,7 +1995,9 @@ var ChatBox = class extends Base {
 		const c = this.els.column;
 		if (!c) return;
 		c.classList.toggle("fade", c.scrollHeight > c.clientHeight + 1 || c.scrollTop > 0);
-		this.atEnd = c.scrollHeight - c.scrollTop - c.clientHeight < 4;
+		if (!c.clientHeight) return;
+		if (c.scrollHeight - c.scrollTop - c.clientHeight < 4) this.atEnd = true;
+		else if (Date.now() - this.userScrollAt < 1e3) this.atEnd = false;
 	}
 	/**
 	* After the messages (or open/minimized) changed: what arrived (by id, on
@@ -2397,4 +2404,4 @@ function defineChatBox(tag = "liagent-chat") {
 
 //#endregion
 export { avatarColors as a, initialOf as c, when as i, lineAvatar as l, defineChatBox as n, avatarSrcs as o, pageHint as r, hashId as s, ChatBox as t, DEBOUNCE_MS as u };
-//# sourceMappingURL=box-C1u2oxyB.js.map
+//# sourceMappingURL=box-BNQXWEl3.js.map
