@@ -342,6 +342,11 @@ declare class ChatHub {
   } | null>;
   /** End a preapproved grant for `token` (the host dropped or changed its key). */
   unapprove(token: string): Promise<void>;
+  /**
+   * End a grant by its hash (`hashToken(token)`, 64 hex), for a host that keeps
+   * only the hash of its old key: closes the agents holding it and drops it.
+   */
+  unapproveHash(hash: string): Promise<void>;
   /** An eval pairing on one friend's pages: the owner's agent asks, the friend answers. */
   private pairForFriend;
   /** Reconnecting with a grant token: chat scope again, no prompt — or 4498 if it is not live. */
