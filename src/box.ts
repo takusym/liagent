@@ -122,7 +122,14 @@ import {
   pickLang,
   trimHistory,
 } from "./protocol.ts";
-import { DEBOUNCE_MS, afterChange, autoSend, enterSends, lineBreakSends, partialTail } from "./input.ts";
+import {
+  DEBOUNCE_MS,
+  afterChange,
+  autoSend,
+  enterSends,
+  lineBreakSends,
+  partialTail,
+} from "./input.ts";
 import { TREE_STRINGS_EN, type TreeSource, type TreeStrings, watchTree } from "./tree.ts";
 import { type TreeNode, frontier } from "./state-tree.ts";
 import { type AvatarSrc, type Sender, avatarColors, initialOf, lineAvatar } from "./avatar.ts";
@@ -1177,7 +1184,9 @@ export class ChatBox extends Base {
     column.addEventListener("wheel", () => (this.userScrollAt = Date.now()), { passive: true });
     column.addEventListener("touchmove", () => (this.userScrollAt = Date.now()), { passive: true });
     // Dragging the scrollbar, or keys (PageUp, arrows, Home) on the focused log.
-    column.addEventListener("pointerdown", () => (this.userScrollAt = Date.now()), { passive: true });
+    column.addEventListener("pointerdown", () => (this.userScrollAt = Date.now()), {
+      passive: true,
+    });
     column.addEventListener("keydown", () => (this.userScrollAt = Date.now()), { passive: true });
     column.addEventListener("transitionend", (e) => {
       if (e.target !== column) return;
@@ -1592,7 +1601,11 @@ export class ChatBox extends Base {
     if (!this.composing) this.settledLen = this._draft.length;
     // While a mic is on, a transcript is still coming in or the draft is held, nothing goes
     // out by itself: not the debounce, and not a jump that ends a sentence (a paste).
-    const next = autoSend(raw, { mic: this._micActive, partial: !!this._partial, hold: this._hold });
+    const next = autoSend(raw, {
+      mic: this._micActive,
+      partial: !!this._partial,
+      hold: this._hold,
+    });
     if (next === "send") return void this.submit();
     if (next === "idle") return;
     // A fresh bar on each keystroke drains for the debounce.
@@ -1947,12 +1960,20 @@ export class ChatBox extends Base {
       ask.append(b);
     };
     if (p.scope || this._friend)
-      btn("y", "Allow", all ? "Allow on all your pages, including pages opened later" : "Allow on the ticked pages", () =>
-        this.onAnswer?.("allow", p, { pages: pages() }),
+      btn(
+        "y",
+        "Allow",
+        all ? "Allow on all your pages, including pages opened later" : "Allow on the ticked pages",
+        () => this.onAnswer?.("allow", p, { pages: pages() }),
       );
     else {
-      btn("y", "8h", all ? "Allow code on all your pages and chat, for 8 hours" : "Allow code and chat for 8 hours", () =>
-        this.onAnswer?.("allow", p, { pages: pages() }),
+      btn(
+        "y",
+        "8h",
+        all
+          ? "Allow code on all your pages and chat, for 8 hours"
+          : "Allow code and chat for 8 hours",
+        () => this.onAnswer?.("allow", p, { pages: pages() }),
       );
       btn("c", "chat", "Chat only, for 30 days", () =>
         this.onAnswer?.("allow", p, { pages: pages(), scope: "chat" }),
@@ -2069,7 +2090,15 @@ export class ChatBox extends Base {
         }),
       );
       // The avatar's own tooltip hides the line's: it leads with the sending time too.
-      const av = avatarEl(who.srcs, who.node, who.name, initialOf(who.initialFrom), who.seed, 0, when(m.at));
+      const av = avatarEl(
+        who.srcs,
+        who.node,
+        who.name,
+        initialOf(who.initialFrom),
+        who.seed,
+        0,
+        when(m.at),
+      );
       li.append(av, text);
       log.append(li);
     }
