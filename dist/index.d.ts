@@ -5,7 +5,7 @@ import { i as chooseVoice, o as preferredVoice, r as VoicePreference } from "./v
 import { i as isQuiet, n as Silence, o as silenceFor, r as SpeakMeta } from "./speak-rules-C7HEK7mJ.js";
 import { HubConnection, HubOptions, connectHub } from "./client.js";
 import { Q as postStt, _ as vadFromScripts, i as VadConfig, o as VadSource } from "./mic-audio-COUVDBJM.js";
-import { a as MicStrings, c as dictate, i as MicElement, o as SttHandler, s as defineMic, t as DictationTarget, v as MicVoiceLink, w as micSession } from "./mic-button-CQ9_12In.js";
+import { a as MicStrings, c as dictate, i as MicElement, o as SttHandler, s as defineMic, t as DictationTarget, v as MicVoiceLink, w as micSession } from "./mic-button-zsa5NU9j.js";
 import { A as voice, E as pickNaturalVoice, I as OutMode, _ as Voice, b as VoiceOptions, j as voiceQuality, v as VoiceHook, w as createVoice, x as VoiceState, z as TtsSource } from "./voice-J7V61A7D.js";
 
 //#region src/input.d.ts

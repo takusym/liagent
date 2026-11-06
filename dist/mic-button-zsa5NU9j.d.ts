@@ -123,6 +123,13 @@ declare function createMicSession<C = unknown>(deps: MicDeps<C>, from?: {
   voice: () => MicVoiceLink | null; /** A tap: on (remembered for a reload), or an explicit off. */
   toggle(): Promise<void>; /** The explicit off: the VAD, the stream and the reload flag all go. */
   off(): Promise<void>;
+  /**
+   * Retry (no audio): off, then on again once the cleanup is done, on a new
+   * stream. The pending "on" is not a tap: any tap meanwhile cancels it and
+   * counts as if there had been no retry, from off (1 tap ends on, 2 end
+   * off); an off() (a closed window) cancels it and stays off.
+   */
+  retry(): Promise<void>;
   hold: (on: boolean) => void; /** When the last audio frame arrived (ms since epoch; 0 if none): a heartbeat to poll. */
   lastFrameAt: () => number;
   /**
@@ -254,4 +261,4 @@ declare class MicElement extends Base {
 declare function defineMic(tag?: string): typeof MicElement;
 //#endregion
 export { createMicSession as C, VoiceLinkState as S, MicView as _, MicStrings as a, StreamLike as b, dictate as c, MIC_ON_KEY as d, MIC_SESSION_KEY as f, MicSink as g, MicSession as h, MicElement as i, isDictationTarget as l, MicDeps as m, MIC_STRINGS_EN as n, SttHandler as o, MIC_SESSION_V as p, MicConfig as r, defineMic as s, DictationTarget as t, micLabel as u, MicVoiceLink as v, micSession as w, Utterance as x, ResumeOutcome as y };
-//# sourceMappingURL=mic-button-CQ9_12In.d.ts.map
+//# sourceMappingURL=mic-button-zsa5NU9j.d.ts.map
