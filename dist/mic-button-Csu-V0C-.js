@@ -101,6 +101,9 @@ function createMicSession(deps, from) {
 	let prev = "off";
 	/** The explicit off's cleanup while it runs (shared by a second off; toggle and resume wait for it). */
 	let teardown = null;
+	/** Taps during a teardown: the intent they add up to, and a counter so only the last one acts. */
+	let intent = null;
+	let taps = 0;
 	/** The last audio frame's time (0: none yet). */
 	let lastFrame = 0;
 	const mic = createMic({
@@ -216,13 +219,27 @@ function createMicSession(deps, from) {
 		voice: () => voice,
 		async toggle() {
 			emit({ error: null });
-			if (teardown) await teardown;
+			if (teardown) {
+				intent = intent === "on" ? "off" : "on";
+				const my = ++taps;
+				await teardown;
+				if (my !== taps) return;
+				const want = intent;
+				intent = null;
+				if (want === "on" && mic.state() === "off") {
+					store.on();
+					await mic.toggle();
+				}
+				return;
+			}
 			if (mic.state() === "off") {
 				store.on();
 				await mic.toggle();
 			} else await session.off();
 		},
 		async off() {
+			taps++;
+			intent = null;
 			if (teardown) return teardown;
 			store.clear();
 			emit({ resume: false });
@@ -715,4 +732,4 @@ function defineMic(tag = "liagent-mic") {
 
 //#endregion
 export { isDictationTarget as a, MIC_SESSION_KEY as c, micSession as d, dictate as i, MIC_SESSION_V as l, MicElement as n, micLabel as o, defineMic as r, MIC_ON_KEY as s, MIC_STRINGS_EN as t, createMicSession as u };
-//# sourceMappingURL=mic-button-DbQ03EZQ.js.map
+//# sourceMappingURL=mic-button-Csu-V0C-.js.map
