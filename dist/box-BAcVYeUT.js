@@ -977,7 +977,8 @@ var ChatBox = class extends Base {
 			"hold",
 			"mic-placement",
 			"tree-placement",
-			"all-pages"
+			"all-pages",
+			"no-echo-toggle"
 		];
 	}
 	/**
@@ -1452,6 +1453,18 @@ var ChatBox = class extends Base {
 	* "all"): the request says so, Allow sends pages "all", and no page ticks
 	* are shown. Attribute: all-pages.
 	*/
+	/**
+	* Show the menu's echo-cancellation row when a mic is in the box. Default
+	* true; false (attribute no-echo-toggle) hides it, for a host that decides
+	* the mic's processing itself.
+	*/
+	get echoToggle() {
+		return !this.hasAttribute("no-echo-toggle");
+	}
+	set echoToggle(v) {
+		if (typeof this.toggleAttribute === "function") this.toggleAttribute("no-echo-toggle", !v);
+		this.renderMenu();
+	}
 	get allPages() {
 		return this._allPages;
 	}
@@ -1463,6 +1476,7 @@ var ChatBox = class extends Base {
 		if (name === "mic-active") this.applyMic(this.hasAttribute("mic-active"));
 		else if (name === "hold") this.applyHold(this.hasAttribute("hold"));
 		else if (name === "all-pages") this.applyAllPages(this.hasAttribute("all-pages"));
+		else if (name === "no-echo-toggle") this.renderMenu();
 		else this.renderActions();
 	}
 	applyAllPages(v) {
@@ -3420,7 +3434,7 @@ var ChatBox = class extends Base {
 			rate.append(b);
 		}
 		menu.append(status, speak, rate);
-		if (this.els.micslot.assignedElements?.().length) {
+		if (this.echoToggle && this.els.micslot.assignedElements?.().length) {
 			const aec = document.createElement("button");
 			aec.type = "button";
 			aec.setAttribute("role", "menuitemcheckbox");
@@ -3604,4 +3618,4 @@ function defineChatBox(tag = "liagent-chat") {
 
 //#endregion
 export { avatarColors as a, initialOf as c, memoryFiles as d, when as i, lineAvatar as l, defineChatBox as n, avatarSrcs as o, pageHint as r, hashId as s, ChatBox as t, DEBOUNCE_MS as u };
-//# sourceMappingURL=box-RNYE8Wm-.js.map
+//# sourceMappingURL=box-BAcVYeUT.js.map

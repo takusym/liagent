@@ -410,6 +410,13 @@ declare class ChatBox extends Base {
    * "all"): the request says so, Allow sends pages "all", and no page ticks
    * are shown. Attribute: all-pages.
    */
+  /**
+   * Show the menu's echo-cancellation row when a mic is in the box. Default
+   * true; false (attribute no-echo-toggle) hides it, for a host that decides
+   * the mic's processing itself.
+   */
+  get echoToggle(): boolean;
+  set echoToggle(v: boolean);
   get allPages(): boolean;
   set allPages(v: boolean);
   attributeChangedCallback(name: string): void;
@@ -627,4 +634,4 @@ declare class ChatBox extends Base {
 declare function defineChatBox(tag?: string): typeof ChatBox;
 //#endregion
 export { memoryFiles as S, FileItemAction as _, MicPlacement as a, MemoryFilesOptions as b, defineChatBox as c, avatarColors as d, avatarSrcs as f, ChatFiles as g, lineAvatar as h, ChatVoice as i, pageHint as l, initialOf as m, AnswerType as n, ScrollState as o, hashId as p, ChatBox as r, TreePlacement as s, Answer as t, when as u, FilesListing as v, StoredFile as x, FilesUsage as y };
-//# sourceMappingURL=box-DUeErPo_.d.ts.map
+//# sourceMappingURL=box-ghHNqp4N.d.ts.map

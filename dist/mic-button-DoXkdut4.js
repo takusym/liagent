@@ -416,6 +416,10 @@ function micLabel(v, status, t = MIC_STRINGS_EN) {
 	if (status === "speaking") return t.speaking;
 	return v.state === "capturing" ? t.recording : t.listening;
 }
+/** The visible label under the icon: the host's strings.rec while capturing, else none. */
+function micRec(v, t = MIC_STRINGS_EN) {
+	return v.state === "capturing" && t.rec ? t.rec : "";
+}
 /** What the live region says: the coarse state only, so capture starting and stopping per utterance stays quiet. */
 function micLive(v, status, t = MIC_STRINGS_EN) {
 	if (v.state === "off" || v.state === "loading") return "";
@@ -504,6 +508,8 @@ button[data-status="speaking"] { color: var(--talk); }
 button[data-status="speaking"]::before { box-shadow: 0 0 0 2px var(--talk); animation: pulse 2.4s ease-in-out infinite; }
 button[data-resume]::before { border: 2px dashed var(--rec); }
 svg { width: 1em; height: 1em; fill: currentColor; }
+.rec { font-size: 8px; font-weight: 700; color: var(--rec); line-height: 1; }
+.rec[hidden] { display: none; }
 .live {
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
   overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
@@ -546,6 +552,7 @@ var MicElement = class extends Base {
 	btn;
 	path;
 	liveEl;
+	recEl;
 	noteEl;
 	off = [];
 	/** Works out the page-audio hold again (src/page-audio.ts), while connected. */
@@ -764,7 +771,11 @@ var MicElement = class extends Base {
 		live.className = "live";
 		live.setAttribute("role", "status");
 		live.setAttribute("aria-live", "polite");
-		btn.append(svg);
+		const rec = this.recEl = document.createElement("span");
+		rec.className = "rec";
+		rec.setAttribute("aria-hidden", "true");
+		rec.hidden = true;
+		btn.append(svg, rec);
 		btn.addEventListener("pointerdown", (e) => e.preventDefault());
 		btn.addEventListener("click", () => {
 			const s = this._session;
@@ -788,6 +799,10 @@ var MicElement = class extends Base {
 		btn.title = micLabel(v, status, t);
 		this.path.setAttribute("d", v.state === "off" ? MIC_PATH.regular : MIC_PATH.fill);
 		this.liveEl.textContent = micLive(v, status, t);
+		if (this.recEl) {
+			this.recEl.textContent = micRec(v, t);
+			this.recEl.hidden = !this.recEl.textContent;
+		}
 		const note = v.error ? v.error instanceof NoStt ? t.noStt : micErrorNote(v.error, t) : "";
 		this.noteEl.textContent = note;
 		if (v.error && v.error !== this.last.error) this.fire("mic-error", {
@@ -817,5 +832,5 @@ function defineMic(tag = "liagent-mic") {
 }
 
 //#endregion
-export { isDictationTarget as a, MIC_ON_KEY as c, createMicSession as d, micSession as f, dictate as i, MIC_SESSION_KEY as l, MicElement as n, micLabel as o, defineMic as r, micLive as s, MIC_STRINGS_EN as t, MIC_SESSION_V as u };
-//# sourceMappingURL=mic-button-BYp4oKWX.js.map
+export { isDictationTarget as a, micRec as c, MIC_SESSION_V as d, createMicSession as f, dictate as i, MIC_ON_KEY as l, MicElement as n, micLabel as o, micSession as p, defineMic as r, micLive as s, MIC_STRINGS_EN as t, MIC_SESSION_KEY as u };
+//# sourceMappingURL=mic-button-DoXkdut4.js.map

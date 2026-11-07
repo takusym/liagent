@@ -203,10 +203,17 @@ type MicStrings = MicErrorStrings & {
   liveListening: string; /** Said by the live region when the agent starts speaking. */
   liveSpeaking: string;
   noStt: string;
+  /**
+   * A visible label under the icon while capturing (e.g. "録音"), for hosts
+   * that want a text sign besides the ring. Empty (the default): no label.
+   */
+  rec?: string;
 };
 declare const MIC_STRINGS_EN: MicStrings;
 /** The button's label for a view. */
 declare function micLabel(v: Pick<MicView, "state" | "resume">, status: MicStatus, t?: MicStrings): string;
+/** The visible label under the icon: the host's strings.rec while capturing, else none. */
+declare function micRec(v: Pick<MicView, "state">, t?: Pick<MicStrings, "rec">): string;
 /** What the live region says: the coarse state only, so capture starting and stopping per utterance stays quiet. */
 declare function micLive(v: Pick<MicView, "state">, status: MicStatus, t?: MicStrings): string;
 declare const Base: typeof HTMLElement;
@@ -227,6 +234,7 @@ declare class MicElement extends Base {
   private btn?;
   private path?;
   private liveEl?;
+  private recEl?;
   private noteEl?;
   private off;
   /** Works out the page-audio hold again (src/page-audio.ts), while connected. */
@@ -277,5 +285,5 @@ declare class MicElement extends Base {
 /** Register the element (once) under `tag`. Returns the class. */
 declare function defineMic(tag?: string): typeof MicElement;
 //#endregion
-export { VoiceLinkState as C, Utterance as S, micSession as T, MicSink as _, MicStrings as a, ResumeOutcome as b, dictate as c, micLive as d, MIC_ON_KEY as f, MicSession as g, MicDeps as h, MicElement as i, isDictationTarget as l, MIC_SESSION_V as m, MIC_STRINGS_EN as n, SttHandler as o, MIC_SESSION_KEY as p, MicConfig as r, defineMic as s, DictationTarget as t, micLabel as u, MicView as v, createMicSession as w, StreamLike as x, MicVoiceLink as y };
-//# sourceMappingURL=mic-button-Ca7UMr5o.d.ts.map
+export { Utterance as C, micSession as E, StreamLike as S, createMicSession as T, MicSession as _, MicStrings as a, MicVoiceLink as b, dictate as c, micLive as d, micRec as f, MicDeps as g, MIC_SESSION_V as h, MicElement as i, isDictationTarget as l, MIC_SESSION_KEY as m, MIC_STRINGS_EN as n, SttHandler as o, MIC_ON_KEY as p, MicConfig as r, defineMic as s, DictationTarget as t, micLabel as u, MicSink as v, VoiceLinkState as w, ResumeOutcome as x, MicView as y };
+//# sourceMappingURL=mic-button-CTIrVO20.d.ts.map
