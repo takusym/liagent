@@ -1,5 +1,5 @@
 import { BUSY_AFTER_REPLY_MS, BUSY_MS, MAX_ATTACHMENTS, MAX_CHAT, ROOT_NODE, applyEdit, cleanFileName, completeNode, dictatedDraft, draftSource, lineNode, mergeContext, nodePath, parseAddress, pathLabel, pickLang, trimHistory } from "./protocol.js";
-import { A as countBadge, B as FLOAT_MAX, C as createLongPress, D as LONG_PRESS_MS, Dt as oneLine, E as FRONTIER_ROWS, Et as menuGroups, G as createArrivals, I as placeBox, J as dwellMs, M as shortId, N as shownAgentId, S as createDragFlag, W as countUnread, Y as minimizeFloat, bt as actionEnabled, ct as isVisible, g as wheelPixels, h as splitScroll, ht as repinEnd, i as silenceFor, it as dragOffset, j as frontierView, l as treeDefaults, lt as maxDetent, mt as atEndAfter, ot as indexTree, p as createSwipeHandoff, q as createFloatLife, r as pageHidden, rt as dragCells, st as initialNav, t as RETIRED_SETTINGS, u as uiStrings, ut as treeNav, w as createTapper, x as createAxisLock, xt as actionsAt, z as FADE_MS } from "./speak-rules-D7KXeUgA.js";
+import { A as countBadge, B as FLOAT_MAX, C as createLongPress, D as LONG_PRESS_MS, Dt as oneLine, E as FRONTIER_ROWS, Et as menuGroups, G as createArrivals, I as placeBox, J as dwellMs, M as shortId, N as shownAgentId, S as createDragFlag, W as countUnread, Y as minimizeFloat, bt as actionEnabled, ct as isVisible, g as wheelPixels, h as splitScroll, ht as repinEnd, i as silenceFor, it as dragOffset, j as frontierView, l as treeDefaults, lt as maxDetent, mt as atEndAfter, ot as indexTree, p as createSwipeHandoff, q as createFloatLife, r as pageHidden, rt as dragCells, st as initialNav, t as RETIRED_SETTINGS, u as uiStrings, ut as treeNav, w as createTapper, x as createAxisLock, xt as actionsAt, z as FADE_MS } from "./speak-rules-BN9C1r3K.js";
 import { o as aecOn, s as applyAec } from "./aec-Dn6DDsp2.js";
 import { r as countOpen, s as frontier } from "./state-tree-U_1Vg6uJ.js";
 import { c as watchTree, r as TREE_STRINGS_EN } from "./tree-B01r_N1f.js";
@@ -597,7 +597,6 @@ function when(at, now = /* @__PURE__ */ new Date()) {
 	return day(d) === day(now) ? `${hm}:${pad(d.getSeconds())}` : `${day(d)} ${hm}`;
 }
 /** In the input while the mark is held. */
-const DRAG_HINT = "drag: move · tap: minimize · double-tap: menu";
 const MARK_HINT = "Tap: minimize or restore · double-tap: menu · drag: move the chat";
 const TREE_HINT = "Tap: show or hide the state tree · drag right: open the focused node deeper · drag left: fold it · arrow keys: move";
 /** The input grows to about five lines, then scrolls inside itself. */
@@ -664,19 +663,19 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 }
 /* The one scroller: the tree (when open) on top, the log below. Compact at rest. */
 .column {
-  max-height: 4.4rem; min-height: 3rem; overflow-y: auto; padding: 6px 8px;
+  max-height: var(--liagent-log-max, 4.4rem); min-height: 3rem; overflow-y: auto; padding: 6px 8px;
   scrollbar-width: none; transition: max-height .15s ease-out;
 }
 .column::-webkit-scrollbar { display: none; }
-.column.wide { max-height: 30vh; }
+.column.wide { max-height: var(--liagent-log-max-wide, 30vh); }
 .column.fade { -webkit-mask-image: linear-gradient(to bottom, transparent, black .9rem); mask-image: linear-gradient(to bottom, transparent, black .9rem); }
 .column.wide.fade { -webkit-mask-image: linear-gradient(to bottom, transparent, black 2.5rem); mask-image: linear-gradient(to bottom, transparent, black 2.5rem); }
 .treepanel { pointer-events: none; display: flex; flex-direction: row-reverse; align-items: flex-start; min-width: 0; max-width: 100%; padding-bottom: 4px; animation: appear .18s ease-out; }
 @keyframes appear { from { opacity: 0; } }
 .treepanel .tbody { flex: 1; min-width: 0; }
 .treepanel .x { pointer-events: auto; flex: none; position: relative; padding: 0 6px; font-size: 10px; color: var(--muted); }
-.ftree .tbody { max-height: 4.4rem; overflow-y: auto; scrollbar-width: none; }
-.ftree .tbody.wide { max-height: 30vh; }
+.ftree .tbody { max-height: var(--liagent-log-max, 4.4rem); overflow-y: auto; scrollbar-width: none; }
+.ftree .tbody.wide { max-height: var(--liagent-log-max-wide, 30vh); }
 .ftree .tbody.fade { -webkit-mask-image: linear-gradient(to bottom, transparent, black .9rem); mask-image: linear-gradient(to bottom, transparent, black .9rem); }
 .blink { animation: blink 1.6s ease-in-out infinite; }
 @keyframes blink { 50% { opacity: .35; } }
@@ -1967,6 +1966,10 @@ var ChatBox = class extends Base {
 			...this._strings
 		};
 	}
+	/** A string with its {placeholders} filled. */
+	tr(k, v = {}) {
+		return this.ui[k].replace(/\{(\w+)\}/g, (m, n) => n in v ? String(v[n]) : m);
+	}
 	get treeText() {
 		return {
 			...TREE_STRINGS_EN,
@@ -2560,7 +2563,7 @@ var ChatBox = class extends Base {
 	renderPlaceholder() {
 		const ta = this.els.input;
 		if (!ta) return;
-		ta.placeholder = this.holding ? DRAG_HINT : this._partial ? "" : this._target !== ROOT_NODE ? `Message ${pathLabel(this._target)}…` : this._placeholder || (this._live && !this._listeners ? "Agent offline — your message waits for it…" : "Message the agent…");
+		ta.placeholder = this.holding ? this.ui.dragHint : this._partial ? "" : this._target !== ROOT_NODE ? this.tr("messageNode", { node: pathLabel(this._target) }) : this._placeholder || (this._live && !this._listeners ? this.ui.agentOfflineWaits : this.ui.messageAgent);
 	}
 	/** The live transcript: a mirror of the draft, invisible, then the partial text dimmed. */
 	renderPartial() {
@@ -2584,7 +2587,7 @@ var ChatBox = class extends Base {
 			const ul = document.createElement("ul");
 			ul.className = "nodes";
 			ul.setAttribute("role", "listbox");
-			ul.setAttribute("aria-label", "Nodes to address");
+			ul.setAttribute("aria-label", this.ui.nodesLabel);
 			for (const n of list) {
 				const li = document.createElement("li");
 				li.setAttribute("role", "option");
@@ -2614,7 +2617,7 @@ var ChatBox = class extends Base {
 				const x = document.createElement("button");
 				x.type = "button";
 				x.textContent = "×";
-				x.setAttribute("aria-label", "Send to the main thread instead");
+				x.setAttribute("aria-label", this.ui.toMainThread);
 				x.addEventListener("pointerdown", (e) => e.preventDefault());
 				x.addEventListener("click", () => this.setTarget(ROOT_NODE));
 				chip.append(x);
@@ -2648,10 +2651,10 @@ var ChatBox = class extends Base {
 		return this.typing || this._micActive || this.panel === "tree";
 	}
 	status() {
-		if (this._notice) return "chat unavailable";
-		if (this.offline) return "not connected — your draft is kept";
-		if (!this._live) return "reconnecting…";
-		return this._listeners ? `agent listening (${this._listeners})` : "agent offline · messages wait until it is back";
+		if (this._notice) return this.ui.statusUnavailable;
+		if (this.offline) return this.ui.statusNotConnected;
+		if (!this._live) return this.ui.statusReconnecting;
+		return this._listeners ? this.tr("statusListening", { n: this._listeners }) : this.ui.statusAgentOffline;
 	}
 	renderAll() {
 		if (!this.root) return;
@@ -2716,7 +2719,7 @@ var ChatBox = class extends Base {
 		const badge = this.els.unread;
 		badge.hidden = unread === 0;
 		badge.textContent = String(unread);
-		this.els.mark.setAttribute("aria-label", this.open ? "Minimize chat" : `Restore chat${unread ? `, ${unread} new` : ""}`);
+		this.els.mark.setAttribute("aria-label", this.open ? this.ui.minimizeChat : unread ? this.tr("restoreChatNew", { n: unread }) : this.ui.restoreChat);
 		this.renderPlaceholder();
 		if (this.panel === "menu") this.renderMenu();
 	}
@@ -2736,14 +2739,15 @@ var ChatBox = class extends Base {
 		if (!this.root) return;
 		const s = this.els.spin;
 		s.hidden = !this._busy;
-		s.title = "the agent is working";
-		s.setAttribute("aria-label", "the agent is working");
+		s.title = this.ui.agentWorking;
+		s.setAttribute("aria-label", this.ui.agentWorking);
 		this.els.input.classList.toggle("pe", this._busy);
 	}
 	/** A pairing request above the bar. */
 	renderAsks() {
 		if (!this.root) return;
 		const row = this.els.asks;
+		row.setAttribute("aria-label", this.ui.asksLabel);
 		row.replaceChildren();
 		const p = this._pending;
 		if (p) row.append(this.renderAsk(p));
@@ -2759,9 +2763,13 @@ var ChatBox = class extends Base {
 		ask.className = "ask";
 		ask.setAttribute("role", "alertdialog");
 		const all = this._allPages && !this._friend;
-		const where = all ? "on all your pages, including pages opened later," : "on the chosen pages";
-		const what = this._friend ? `to run code ${where} for 1 hour` : p.scope === "eval" ? `to run code ${where} and chat, for 8 hours` : p.scope === "chat" ? "to chat with you, for 30 days" : "to run code on your pages, or to chat";
-		const sentence = `${p.label} asks ${what}. Allow only if the agent shows the same code: ${p.code}.`;
+		const where = all ? this.ui.askWhereAll : this.ui.askWhereChosen;
+		const what = this._friend ? this.tr("askFriend", { where }) : p.scope === "eval" ? this.tr("askEval", { where }) : p.scope === "chat" ? this.ui.askChat : this.ui.askOld;
+		const sentence = this.tr("askSentence", {
+			label: p.label,
+			what,
+			code: p.code
+		});
 		ask.setAttribute("aria-label", sentence);
 		ask.title = sentence;
 		ask.innerHTML = ICONS.lock;
@@ -2771,7 +2779,7 @@ var ChatBox = class extends Base {
 		if (p.scope) {
 			const tag = document.createElement("span");
 			tag.className = "tag";
-			tag.textContent = this._friend ? "code · 1h" : p.scope === "eval" ? "code · 8h" : "chat · 30d";
+			tag.textContent = this._friend ? this.ui.tagCode1h : p.scope === "eval" ? this.ui.tagCode8h : this.ui.tagChat30d;
 			ask.append(tag);
 		}
 		if (!this.picked.has(p.pair)) this.picked.set(p.pair, new Set(this._self ? [this._self] : []));
@@ -2792,15 +2800,15 @@ var ChatBox = class extends Base {
 			b.addEventListener("click", fn);
 			ask.append(b);
 		};
-		if (p.scope || this._friend) btn("y", "Allow", all ? "Allow on all your pages, including pages opened later" : "Allow on the ticked pages", () => this.onAnswer?.("allow", p, { pages: pages() }));
+		if (p.scope || this._friend) btn("y", this.ui.allow, all ? this.ui.allowAllTitle : this.ui.allowTickedTitle, () => this.onAnswer?.("allow", p, { pages: pages() }));
 		else {
-			btn("y", "8h", all ? "Allow code on all your pages and chat, for 8 hours" : "Allow code and chat for 8 hours", () => this.onAnswer?.("allow", p, { pages: pages() }));
-			btn("c", "chat", "Chat only, for 30 days", () => this.onAnswer?.("allow", p, {
+			btn("y", this.ui.allow8h, all ? this.ui.allow8hAllTitle : this.ui.allow8hTitle, () => this.onAnswer?.("allow", p, { pages: pages() }));
+			btn("c", this.ui.chatOnly, this.ui.chatOnlyTitle, () => this.onAnswer?.("allow", p, {
 				pages: pages(),
 				scope: "chat"
 			}));
 		}
-		btn("n", "✕", "Deny", () => this.onAnswer?.("deny", p, {}));
+		btn("n", "✕", this.ui.deny, () => this.onAnswer?.("deny", p, {}));
 		if (all || this._pages.length < 2 || p.scope === "chat" && !this._friend) return ask;
 		const wrap = document.createElement("div");
 		wrap.className = "askwrap";
@@ -2816,7 +2824,7 @@ var ChatBox = class extends Base {
 			list.append(l);
 		};
 		const allTicked = picked === "all";
-		for (const pg of this._pages) box(`${pageHint(pg.label)}${pg.id === this._self ? " (this page)" : ""}`, allTicked || picked.has(pg.id), (v) => {
+		for (const pg of this._pages) box(`${pageHint(pg.label)}${pg.id === this._self ? this.ui.thisPage : ""}`, allTicked || picked.has(pg.id), (v) => {
 			const cur = this.picked.get(p.pair);
 			const set = cur === "all" ? new Set(this._pages.map((x) => x.id)) : new Set(cur);
 			if (v) set.add(pg.id);
@@ -2824,7 +2832,7 @@ var ChatBox = class extends Base {
 			this.picked.set(p.pair, set);
 			this.renderAsks();
 		});
-		box("all pages, and pages opened later", allTicked, (v) => {
+		box(this.ui.pagesAllLater, allTicked, (v) => {
 			this.picked.set(p.pair, v ? "all" : new Set(this._self ? [this._self] : []));
 			this.renderAsks();
 		});
@@ -2908,7 +2916,7 @@ var ChatBox = class extends Base {
 		if (this._messages.length === 0) {
 			const li = document.createElement("li");
 			li.className = "hint";
-			li.textContent = `Type here; it is sent ${DEBOUNCE_MS / 1e3} s after you stop.`;
+			li.textContent = this.tr("hintType", { s: DEBOUNCE_MS / 1e3 });
 			log.append(li);
 		}
 		for (const m of this._messages) {
@@ -3124,7 +3132,7 @@ var ChatBox = class extends Base {
 		const who = document.createElement("span");
 		who.className = "who";
 		who.style.color = m.from !== "agent" ? "oklch(0.55 0.13 250)" : "oklch(0.55 0.14 150)";
-		who.textContent = `${m.from !== "agent" ? "you" : m.label || "agent"}:`;
+		who.textContent = `${m.from !== "agent" ? this.ui.you : m.label || this.ui.agentName}:`;
 		li.replaceChildren(who, ...this.lineBody(m, () => this.renderFloatTexts()));
 	}
 	renderFloatTexts() {
@@ -3404,7 +3412,7 @@ var ChatBox = class extends Base {
 		const on = this.speaking || this._micActive;
 		speak.setAttribute("aria-checked", String(on));
 		speak.innerHTML = ICONS.speaker;
-		speak.append(this._micActive ? "Replies read aloud (mic on)" : on ? "Replies read aloud" : "Replies silent");
+		speak.append(this._micActive ? this.ui.readAloudMic : on ? this.ui.readAloud : this.ui.silent);
 		speak.addEventListener("click", () => {
 			if (this._micActive) return;
 			const v = !this.speaking;
@@ -3415,9 +3423,9 @@ var ChatBox = class extends Base {
 		const rate = document.createElement("div");
 		rate.className = "rate";
 		rate.setAttribute("role", "radiogroup");
-		rate.setAttribute("aria-label", "Reading speed");
+		rate.setAttribute("aria-label", this.ui.speedLabel);
 		const lab = document.createElement("span");
-		lab.textContent = "Speed";
+		lab.textContent = this.ui.speed;
 		rate.append(lab);
 		const cur = this.speechRate;
 		for (const r of SPEECH_RATES) {
@@ -3455,7 +3463,7 @@ var ChatBox = class extends Base {
 		const min = document.createElement("button");
 		min.type = "button";
 		min.setAttribute("role", "menuitem");
-		min.textContent = this.open ? "–  Minimize" : "+  Restore";
+		min.textContent = this.open ? this.ui.minimize : this.ui.restore;
 		min.addEventListener("click", () => {
 			this.setPanel("none");
 			this.setOpen(!this.open);
@@ -3465,11 +3473,11 @@ var ChatBox = class extends Base {
 			const row = document.createElement("div");
 			row.className = "sess";
 			const label = document.createElement("span");
-			const where = x.pages === void 0 || x.pages === "all" ? "all pages" : `${x.pages.length} page${x.pages.length === 1 ? "" : "s"}`;
-			label.textContent = `${x.scope === "chat" ? "chat" : this._friend ? "preview" : "eval"}: ${x.label} · ${x.code} · ${where}`;
+			const where = x.pages === void 0 || x.pages === "all" ? this.ui.allPages : x.pages.length === 1 ? this.ui.pagesOne : this.tr("pagesN", { n: x.pages.length });
+			label.textContent = `${x.scope === "chat" ? this.ui.sessChat : this._friend ? this.ui.sessPreview : this.ui.sessEval}: ${x.label} · ${x.code} · ${where}`;
 			const end = document.createElement("button");
 			end.type = "button";
-			end.textContent = "End";
+			end.textContent = this.ui.end;
 			end.addEventListener("click", () => {
 				this.setPanel("none");
 				this.onEnd?.(x);
@@ -3480,18 +3488,18 @@ var ChatBox = class extends Base {
 		if (this._pages.length < 2) return;
 		const head = document.createElement("span");
 		head.className = "head";
-		head.textContent = "Your open pages";
+		head.textContent = this.ui.openPages;
 		menu.append(head);
 		for (const pg of this._pages) {
 			const row = document.createElement("div");
 			row.className = "pg";
 			const label = document.createElement("span");
 			const mine = pg.id === this._self;
-			label.textContent = `${pageHint(pg.label)}${mine ? " (this page)" : ""}`;
+			label.textContent = `${pageHint(pg.label)}${mine ? this.ui.thisPage : ""}`;
 			label.title = pg.label;
 			const end = document.createElement("button");
 			end.type = "button";
-			end.textContent = mine && this.confirmEnd === pg.id ? "End this page?" : "End";
+			end.textContent = mine && this.confirmEnd === pg.id ? this.ui.endThisPage : this.ui.end;
 			end.addEventListener("click", () => {
 				if (mine && this.confirmEnd !== pg.id) {
 					this.confirmEnd = pg.id;
@@ -3618,4 +3626,4 @@ function defineChatBox(tag = "liagent-chat") {
 
 //#endregion
 export { avatarColors as a, initialOf as c, memoryFiles as d, when as i, lineAvatar as l, defineChatBox as n, avatarSrcs as o, pageHint as r, hashId as s, ChatBox as t, DEBOUNCE_MS as u };
-//# sourceMappingURL=box-BAcVYeUT.js.map
+//# sourceMappingURL=box-Xse4pgVs.js.map

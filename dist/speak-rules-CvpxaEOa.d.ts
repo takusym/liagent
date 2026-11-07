@@ -210,7 +210,63 @@ type UiStrings = {
   filesKeep: string; /** Screen-reader label of the × that closes that list. */
   filesClose: string; /** Echo cancellation in the menu, when a mic is in the box. */
   echoOn: string;
-  echoOff: string;
+  echoOff: string; /** The empty log's hint ({s}: seconds). */
+  hintType: string; /** The input's placeholder while the mark is held. */
+  dragHint: string; /** Placeholder when a node is aimed at. */
+  messageNode: string; /** Placeholder. */
+  messageAgent: string; /** Placeholder with no agent listening. */
+  agentOfflineWaits: string; /** Accessible name of the pairing requests. */
+  asksLabel: string; /** Accessible name of the @/ node list. */
+  nodesLabel: string; /** The × on the aimed node. */
+  toMainThread: string; /** Status. */
+  statusUnavailable: string; /** Status. */
+  statusNotConnected: string; /** Status. */
+  statusReconnecting: string; /** Status ({n}: agents). */
+  statusListening: string; /** Status. */
+  statusAgentOffline: string; /** The spinner's label. */
+  agentWorking: string; /** A code request's pages, when the host grants all. */
+  askWhereAll: string; /** A code request's pages. */
+  askWhereChosen: string; /** What a friend's preview asks. */
+  askFriend: string; /** What an eval request asks. */
+  askEval: string; /** What a chat request asks. */
+  askChat: string; /** What an older agent asks. */
+  askOld: string; /** A request's full sentence (tooltip, label). */
+  askSentence: string; /** Request tag. */
+  tagCode1h: string; /** Request tag. */
+  tagCode8h: string; /** Request tag. */
+  tagChat30d: string; /** Button. */
+  allow: string; /** Allow's tooltip (all-pages). */
+  allowAllTitle: string; /** Allow's tooltip. */
+  allowTickedTitle: string; /** An older agent's code button. */
+  allow8h: string; /** Its tooltip (all-pages). */
+  allow8hAllTitle: string; /** Its tooltip. */
+  allow8hTitle: string; /** An older agent's chat button. */
+  chatOnly: string; /** Its tooltip. */
+  chatOnlyTitle: string; /** The ✕'s label. */
+  deny: string; /** Page tick. */
+  pagesAllLater: string; /** After this page's name. */
+  thisPage: string; /** Screen-reader prefix of your line. */
+  you: string; /** Screen-reader prefix of an agent line with no label. */
+  agentName: string; /** The speed group's label. */
+  speedLabel: string; /** Its visible label. */
+  speed: string; /** Menu. */
+  readAloudMic: string; /** Menu. */
+  readAloud: string; /** Menu. */
+  silent: string; /** Menu. */
+  minimize: string; /** Menu. */
+  restore: string; /** The mark's label. */
+  minimizeChat: string; /** The mark's label. */
+  restoreChat: string; /** The mark's label with unread lines. */
+  restoreChatNew: string; /** A session's kind. */
+  sessChat: string; /** A session's kind. */
+  sessPreview: string; /** A session's kind. */
+  sessEval: string; /** A session's pages. */
+  allPages: string; /** A session's pages. */
+  pagesOne: string; /** A session's pages. */
+  pagesN: string; /** Ends a session or a page. */
+  end: string; /** Menu heading. */
+  openPages: string; /** Second tap on this page's End. */
+  endThisPage: string;
 };
 declare const UI_EN: UiStrings;
 declare const UI_ZH: UiStrings;
@@ -259,4 +315,4 @@ declare const pageHidden: () => boolean;
 declare const RETIRED_SETTINGS: readonly ["quiet-hours"];
 //#endregion
 export { createSelectionMemory as A, SelectionActionOptions as C, UploadedFile as D, SelectionMemory as E, oneLine as F, pageSelection as I, readSelection as L, isSensitive as M, mediaAction as N, actionEnabled as O, menuGroups as P, selectionAction as R, SENSITIVE as S, SelectionDoc as T, ChatAction as _, pageHidden as a, PageSelection as b, UI_EN as c, isZh as d, treeDefaults as f, CHAT_FENCE as g, ActionPlace as h, isQuiet as i, fileAction as j, actionsAt as k, UI_ZH as l, ActionHost as m, Silence as n, silenceFor as o, uiStrings as p, SpeakMeta as r, TREE_ZH as s, RETIRED_SETTINGS as t, UiStrings as u, ElLike as v, SelectionDeps as w, SELECTION_TTL_MS as x, FileActionOptions as y };
-//# sourceMappingURL=speak-rules-BjbQkHE_.d.ts.map
+//# sourceMappingURL=speak-rules-CvpxaEOa.d.ts.map

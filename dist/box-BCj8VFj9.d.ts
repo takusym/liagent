@@ -1,5 +1,5 @@
 import { AttachmentRef, AvatarSrc, ChatContext, ChatMessage, EditedEvent, MessageSource, PageInfo, PairInfo, Sender } from "./protocol.js";
-import { _ as ChatAction, r as SpeakMeta, u as UiStrings } from "./speak-rules-BjbQkHE_.js";
+import { _ as ChatAction, r as SpeakMeta, u as UiStrings } from "./speak-rules-CvpxaEOa.js";
 import { a as TreeSource, o as TreeStrings } from "./tree-Bd1GqabM.js";
 import { r as VoicePreference } from "./voice-pick-DPtrhMzI.js";
 
@@ -484,6 +484,8 @@ declare class ChatBox extends Base {
   /** A resize (window, rotation, the visual viewport): the bar stays on screen, the float box re-placed. */
   private relayout;
   private get ui();
+  /** A string with its {placeholders} filled. */
+  private tr;
   private get treeText();
   private build;
   /**
@@ -634,4 +636,4 @@ declare class ChatBox extends Base {
 declare function defineChatBox(tag?: string): typeof ChatBox;
 //#endregion
 export { memoryFiles as S, FileItemAction as _, MicPlacement as a, MemoryFilesOptions as b, defineChatBox as c, avatarColors as d, avatarSrcs as f, ChatFiles as g, lineAvatar as h, ChatVoice as i, pageHint as l, initialOf as m, AnswerType as n, ScrollState as o, hashId as p, ChatBox as r, TreePlacement as s, Answer as t, when as u, FilesListing as v, StoredFile as x, FilesUsage as y };
-//# sourceMappingURL=box-ghHNqp4N.d.ts.map
+//# sourceMappingURL=box-BCj8VFj9.d.ts.map
