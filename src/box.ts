@@ -458,6 +458,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .blink { animation: blink 1.6s ease-in-out infinite; }
 @keyframes blink { 50% { opacity: .35; } }
 .log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+:host(:not(:focus-within)) .log li.older { display: none; }
 .log li { display: flex; align-items: flex-start; gap: 6px; }
 .text { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; padding-top: 1px; }
 .log .hint { opacity: .6; display: block; }
@@ -792,7 +793,15 @@ type FloatLife = ReturnType<typeof createFloatLife>;
 /** The chat box element. Plain properties in, callbacks out; see the file header. */
 export class ChatBox extends Base {
   static get observedAttributes() {
-    return ["mic-active", "hold", "mic-placement", "tree-placement", "all-pages", "no-echo-toggle"];
+    return [
+      "mic-active",
+      "hold",
+      "mic-placement",
+      "tree-placement",
+      "all-pages",
+      "no-echo-toggle",
+      "collapsed-count",
+    ];
   }
   /**
    * Called with each draft that goes out, and the state-tree node it is
@@ -1142,6 +1151,19 @@ export class ChatBox extends Base {
   set micPlacement(v: MicPlacement) {
     this.setAttribute("mic-placement", v);
   }
+  /**
+   * While focus is outside the box, show only the last N lines; focusing it
+   * (focus-within) shows the full log. 0 / unset = always the full log.
+   * Attribute: collapsed-count.
+   */
+  get collapsedCount(): number {
+    const n = Number(this.getAttribute?.("collapsed-count"));
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  }
+  set collapsedCount(v: number) {
+    if (v > 0) this.setAttribute("collapsed-count", String(Math.floor(v)));
+    else this.removeAttribute("collapsed-count");
+  }
   /** Where the tree button goes. Attribute: tree-placement. */
   get treePlacement(): TreePlacement {
     const v = this.getAttribute?.("tree-placement") as TreePlacement | null;
@@ -1300,6 +1322,7 @@ export class ChatBox extends Base {
     else if (name === "hold") this.applyHold(this.hasAttribute("hold"));
     else if (name === "all-pages") this.applyAllPages(this.hasAttribute("all-pages"));
     else if (name === "no-echo-toggle") this.renderMenu();
+    else if (name === "collapsed-count") this.renderLog();
     else this.renderActions();
   }
   private applyAllPages(v: boolean) {
@@ -2024,6 +2047,12 @@ export class ChatBox extends Base {
       this.renderAim();
     });
     ta.addEventListener("scroll", () => (this.els.mirror!.scrollTop = ta.scrollTop));
+    // collapsed-count: the log grows or shrinks as focus enters or leaves; stay at its end
+    const refit = () => {
+      if (this.collapsedCount && this.atEnd) requestAnimationFrame(() => this.toEnd());
+    };
+    this.root!.addEventListener("focusin", refit);
+    this.root!.addEventListener("focusout", refit);
     ta.addEventListener("focus", () => {
       this.typing = true;
       this.renderLayout();
@@ -2918,8 +2947,11 @@ export class ChatBox extends Base {
     }
     // A game-style log: one line per message, avatar then text, no bubbles;
     // the time only on hover (long press on a phone).
-    for (const m of this._messages) {
+    const keep = this.collapsedCount;
+    const older = keep ? this._messages.length - keep : 0;
+    for (const [i, m] of this._messages.entries()) {
       const li = document.createElement("li");
+      if (i < older) li.classList.add("older");
       li.dataset.from = m.from;
       li.dataset.id = m.id;
       const who = lineAvatar(m, {
