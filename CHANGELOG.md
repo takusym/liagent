@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Channel tags (MMO-style chat).** `box.channelOf = (m) => ({ label, color, world? } | null)` puts a 【label】 tag before each history line (textContent only; the colour, validated as a CSS colour, set via `style.setProperty("--channel", …)`: tag text in that colour on a faint same-colour background). The host decides the channel (e.g. from `m.to` / `m.taskPath`, root `/` = 世界); `world: true` marks the world channel. `box.channelFilter = label` shows that channel's lines plus the world lines (null = all). Setting either re-renders; neither set = the same log as before (`src/channel-tag.ts`).
 - Box style hooks for the host: `part="bar"`, `--liagent-bar-radius-top` / `--liagent-bar-radius-bottom` (default: the round bar), and the host reflects the layout as `[open]` or `[min]`. (Hiding the state tree was already there: `tree-placement="hidden"`.)
 - `beforesend` event on the box (cancelable): listeners add fields to `detail.extra` (several compose); they go out as the chat line's `ctx` (plain JSON object, max 4000 chars as JSON, kept by parsePageMessage and the hub). No listener = the same message as before.
 

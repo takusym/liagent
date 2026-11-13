@@ -108,6 +108,15 @@
 //     { text, to, source, context, attachments, extra }. Listeners add fields
 //     to detail.extra (they go out as the line's `ctx`); preventDefault()
 //     keeps the draft unsent. See src/before-send.ts.
+//   - Channels: box.channelOf = (m) => ({ label, color } | null) puts a
+//     【label】 tag before each history line (text only; the colour, a CSS
+//     colour, goes on the tag text with a faint same-colour background, set
+//     as a style property). The host decides the channel (e.g. from m.to /
+//     m.taskPath, root "/" = 世界); null = no tag; `world: true` marks the
+//     world channel. box.channelFilter = label shows that channel's lines
+//     plus the world's, like an old MMO chat (null = all). Which node a line
+//     is sent to stays the host's (the selected channel decides `to`). Setting either re-renders;
+//     neither set = no tags, every line.
 //   - Style hooks: part="bar"; --liagent-bar-radius-top / -bottom override
 //     the bar's corners; the host carries [open] or [min].
 //   - Geometry: the bar's corner radius is derived, never set:
@@ -213,6 +222,7 @@ import {
 import { TREE_STRINGS_EN, type TreeSource, type TreeStrings, watchTree } from "./tree.ts";
 import { type TreeNode, frontier } from "./state-tree.ts";
 import { type AvatarSrc, type Sender, avatarColors, initialOf, lineAvatar } from "./avatar.ts";
+import { type ChannelOf, channelFor, channelTagEl, filterByChannel } from "./channel-tag.ts";
 import { TREE_CHIPS_CSS, navIndexOf, renderTreeChips } from "./tree-chips.ts";
 import {
   type TreeNavEvent,
@@ -481,6 +491,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .polished[aria-pressed="true"] { opacity: .9; }
 .raw { opacity: .65; }
 .log li.node { border-inline-start: 2px solid var(--node); padding-inline-start: 4px; }
+.log .channel { color: var(--channel, currentColor); background: color-mix(in srgb, var(--channel, currentColor) 14%, transparent); border-radius: 3px; font-weight: 600; margin-inline-end: 2px; }
 .log .sub { display: block; font-size: 10px; line-height: 1.2; opacity: .65; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Fixed size whatever loads, so a late picture shifts nothing. */
 .av {
@@ -875,6 +886,8 @@ export class ChatBox extends Base {
   voicePrefer?: VoicePreference | null;
 
   private _messages: ChatMessage[] = [];
+  private _channelOf: ChannelOf<ChatMessage> | null = null;
+  private _channelFilter: string | null = null;
   private _live = false;
   private _listeners = 0;
   private _sessions: PairInfo[] = [];
@@ -1265,6 +1278,26 @@ export class ChatBox extends Base {
     if (same(this._user[k], v)) return;
     this._user = { ...this._user, [k]: v };
     this.renderLog();
+  }
+  /**
+   * The host's channel for each history line (e.g. 世界 / 分支 / 報告 from
+   * m.to or m.taskPath): `{ label, color }` puts a 【label】 tag in that
+   * colour before the line, null puts none. Unset: no tags.
+   */
+  set channelOf(v: ChannelOf<ChatMessage> | null | undefined) {
+    this._channelOf = typeof v === "function" ? v : null;
+    this.renderLog();
+  }
+  get channelOf(): ChannelOf<ChatMessage> | null {
+    return this._channelOf;
+  }
+  /** Show the lines whose channelOf(m)?.label equals this, plus world lines ({ world: true }); null shows all. */
+  set channelFilter(v: string | null | undefined) {
+    this._channelFilter = typeof v === "string" ? v : null;
+    this.renderLog();
+  }
+  get channelFilter(): string | null {
+    return this._channelFilter;
   }
   set placeholder(v: string) {
     this._placeholder = v;
@@ -3012,9 +3045,10 @@ export class ChatBox extends Base {
     }
     // A game-style log: one line per message, avatar then text, no bubbles;
     // the time only on hover (long press on a phone).
+    const shown = filterByChannel(this._messages, this._channelOf, this._channelFilter);
     const keep = this.collapsedCount;
-    const older = keep ? this._messages.length - keep : 0;
-    for (const [i, m] of this._messages.entries()) {
+    const older = keep ? shown.length - keep : 0;
+    for (const [i, m] of shown.entries()) {
       const li = document.createElement("li");
       if (i < older) li.classList.add("older");
       li.dataset.from = m.from;
@@ -3044,6 +3078,8 @@ export class ChatBox extends Base {
       const sr = document.createElement("span");
       sr.className = "sr";
       sr.textContent = node ? `${who.name} (${node.subtitle}): ` : `${who.name}: `;
+      const ch = channelFor(this._channelOf, m);
+      if (ch) text.append(channelTagEl(document, ch));
       text.append(
         sr,
         ...this.lineBody(m, () => {
