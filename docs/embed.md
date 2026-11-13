@@ -731,6 +731,28 @@ The rules are pure functions in `liagent/ui` (`silenceFor`, `isQuiet`) for
 hosts that read aloud some other way. An older version kept a per-device
 `<storage-key>:quiet-hours` setting; the box removes it when it attaches.
 
+### Line context as a chip (`ctxRenderer`)
+
+A line's `ctx` (the fields `beforesend` listeners put in `detail.extra`) shows
+as a small chip (`part="ctx"`, a `<button>`) at the line's start instead of
+raw text. Click it, or focus it and press Enter or Space, to toggle a panel
+(`part="ctx-detail"`) with the detail; the chip carries `aria-expanded` and
+`aria-controls`. Legacy lines whose text starts with `[ctx] summary` (also
+quoted, `> [ctx] …`) get the same chip: the first line is taken out of the
+visible text and becomes the chip's title and detail.
+
+```js
+box.ctxRenderer = (ctx, line) =>
+  ctx.table ? { icon: "🧾", title: `${ctx.table} #${ctx.row}`, detail: ctx.note } : null;
+```
+
+Return `{ icon?, title, detail? }`, or `null` for the default: a title from
+`title`, else `table` · `#row` · `page` · `selection`, and a detail of
+`key: value` lines. A throw or a view without a string title also falls back.
+Everything is set with `textContent`: no HTML from `ctx` or the hook, and
+`icon` is clipped to a few characters (an emoji or short string). Style with
+`::part(ctx)` and `::part(ctx-detail)`.
+
 ### Presence: who else is on this node
 
 A strip (`part="presence"`) centred just above the input row shows who else

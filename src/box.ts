@@ -117,6 +117,13 @@
 //     plus the world's, like an old MMO chat (null = all). Which node a line
 //     is sent to stays the host's (the selected channel decides `to`). Setting either re-renders;
 //     neither set = no tags, every line.
+//   - ctx chip (part="ctx", panel part="ctx-detail"): a line's `ctx` (and a
+//     legacy text prefix "[ctx] summary\n…", stripped from the text) shows as
+//     a small button at the line's start, not raw text; click or Enter/Space
+//     toggles a panel with the detail (aria-expanded). box.ctxRenderer =
+//     (ctx, line) => ({ icon?, title, detail? } | null) shapes it; null = the
+//     default (title from title/table/row/page/selection, key: value detail).
+//     Text only: no HTML from ctx or the hook; icon is a short string. See src/ctx-chip.ts.
 //   - Presence (part="presence"): who else is on the box's node, from the
 //     hub's {type:"presence"} snapshot and {type:"presence-delta"} frames
 //     (box.presence(frame); connectHub feeds it and tells the hub the node
@@ -210,6 +217,8 @@ import {
 } from "./presence.ts";
 import { beforeSendEvent } from "./before-send.ts";
 export type { BeforeSendDetail } from "./before-send.ts";
+export type { CtxRenderer, CtxView } from "./ctx-chip.ts";
+export { defaultCtxView, parseLegacyCtx } from "./ctx-chip.ts";
 import {
   type ActionHost,
   type ChatAction,
@@ -244,6 +253,13 @@ import { TREE_STRINGS_EN, type TreeSource, type TreeStrings, watchTree } from ".
 import { type TreeNode, frontier } from "./state-tree.ts";
 import { type AvatarSrc, type Sender, avatarColors, initialOf, lineAvatar } from "./avatar.ts";
 import { type ChannelOf, channelFor, channelTagEl, filterByChannel } from "./channel-tag.ts";
+import {
+  type CtxRenderer,
+  ctxChipEls,
+  ctxViewFor,
+  legacyCtxView,
+  parseLegacyCtx,
+} from "./ctx-chip.ts";
 import { TREE_CHIPS_CSS, navIndexOf, renderTreeChips } from "./tree-chips.ts";
 import {
   type TreeNavEvent,
@@ -640,6 +656,11 @@ textarea::placeholder { color: color-mix(in oklch, currentColor 45%, transparent
 .box.typing .attached { border-radius: 0; background: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
 .attached .what { flex: 1; min-width: 0; }
 .attached .x { all: unset; cursor: pointer; flex: none; padding: 0 6px; color: var(--muted); font-size: 13px; line-height: 1.35; }
+.ctx { all: unset; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-width: 1.4em; height: 1.4em; margin-inline-end: 4px; border-radius: 999px; font-size: 11px; line-height: 1; vertical-align: middle; background: color-mix(in oklch, var(--accent) 14%, transparent); }
+.ctx:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ctx[aria-expanded="true"] { background: color-mix(in oklch, var(--accent) 28%, transparent); }
+.ctx-detail { margin: 2px 0; padding: 2px 6px; border-inline-start: 2px solid color-mix(in oklch, var(--accent) 75%, transparent); font-size: 11px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 10rem; overflow-y: auto; }
+.ctx-detail .ctx-title { font-weight: 600; }
 .quote, .attached .q {
   all: unset; display: block; min-width: 0; max-width: 100%; cursor: pointer; pointer-events: auto;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted);
@@ -971,6 +992,9 @@ export class ChatBox extends Base {
   private attachedBy = new Set<string>();
   /** Quotes shown whole (tapped), by message id ("" = the chip's). */
   private wholeQuotes = new Set<string>();
+  /** Lines whose ctx chip is expanded. */
+  private openCtx = new Set<string>();
+  private _ctxRenderer: CtxRenderer<ChatMessage> | null = null;
   private noticeTimer?: ReturnType<typeof setTimeout>;
   /** The host's file handling (src/files.ts); absent: no files. */
   private _files?: ChatFiles;
@@ -1358,6 +1382,18 @@ export class ChatBox extends Base {
   }
   get channelOf(): ChannelOf<ChatMessage> | null {
     return this._channelOf;
+  }
+  /**
+   * The host's view of a line's ctx: `(ctx, line) => ({ icon?, title, detail? } | null)`.
+   * null (or unset) uses the default (title from title/table/row/page/selection,
+   * detail as key: value lines). Text only. Setting it re-renders.
+   */
+  set ctxRenderer(v: CtxRenderer<ChatMessage> | null | undefined) {
+    this._ctxRenderer = typeof v === "function" ? v : null;
+    this.renderLog();
+  }
+  get ctxRenderer(): CtxRenderer<ChatMessage> | null {
+    return this._ctxRenderer;
   }
   /** Show the lines whose channelOf(m)?.label equals this, plus world lines ({ world: true }); null shows all. */
   set channelFilter(v: string | null | undefined) {
@@ -3161,7 +3197,27 @@ export class ChatBox extends Base {
     // Only the user's own lines carry stored files (the hub drops them elsewhere).
     const files =
       m.attachments?.length && m.from !== "agent" ? [this.sentFiles(m.attachments)] : [];
-    return [...ctx, ...files, ...this.lineText(m, onToggle)];
+    // The line's ctx (or a legacy "[ctx] …" prefix) as a chip at the line's start.
+    const legacy = parseLegacyCtx(m.text);
+    const view = m.ctx
+      ? ctxViewFor(this._ctxRenderer, m.ctx, m)
+      : legacy
+        ? legacyCtxView(legacy.summary)
+        : null;
+    const chip = view
+      ? ctxChipEls(document, view, this.openCtx.has(m.id), m.id, () => {
+          if (!this.openCtx.delete(m.id)) this.openCtx.add(m.id);
+          onToggle();
+        })
+      : [];
+    const shown = legacy ? { ...m, text: legacy.text } : m;
+    return [
+      ...ctx,
+      ...files,
+      ...chip.slice(0, 1),
+      ...this.lineText(shown, onToggle),
+      ...chip.slice(1),
+    ];
   }
   /** What a line carried (a quote, its files) above its text; text only, never HTML. */
   private contextNodes(c: ChatContext, key: string, onToggle: () => void): Node[] {
