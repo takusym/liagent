@@ -104,6 +104,12 @@
 //     "hidden"): the slotted mic at the bar's end, its start, inside the
 //     input's cell (it then folds away with the input when minimized), or
 //     not shown.
+//   - beforesend (event, cancelable): fired just before onSend with
+//     { text, to, source, context, attachments, extra }. Listeners add fields
+//     to detail.extra (they go out as the line's `ctx`); preventDefault()
+//     keeps the draft unsent. See src/before-send.ts.
+//   - Style hooks: part="bar"; --liagent-bar-radius-top / -bottom override
+//     the bar's corners; the host carries [open] or [min].
 //   - Geometry: the bar's corner radius is derived, never set:
 //     R = border + padding + control / 2 (--liagent-bar-border, 1px;
 //     --liagent-bar-pad, 2px; --liagent-control, 2.125rem). A round control
@@ -171,6 +177,9 @@ import {
   pickLang,
   trimHistory,
 } from "./protocol.ts";
+import { cleanCtx } from "./protocol.ts";
+import { beforeSendEvent } from "./before-send.ts";
+export type { BeforeSendDetail } from "./before-send.ts";
 import {
   type ActionHost,
   type ChatAction,
@@ -445,6 +454,10 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   max-height: var(--liagent-log-max, 4.4rem); min-height: 3rem; overflow-y: auto; padding: 6px 8px;
   scrollbar-width: none; transition: max-height .15s ease-out;
 }
+/* While the box is in use the history takes the wheel (its gaps too); at rest
+   only the lines do, so the empty space stays click-through. */
+.box:focus-within .column, .box.on .column, .box.typing .column { pointer-events: auto; }
+.log li { pointer-events: auto; }
 .column::-webkit-scrollbar { display: none; }
 .column.wide { max-height: var(--liagent-log-max-wide, 30vh); }
 .column.fade { -webkit-mask-image: linear-gradient(to bottom, transparent, black .9rem); mask-image: linear-gradient(to bottom, transparent, black .9rem); }
@@ -462,7 +475,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 :host(:not(:focus-within)) .log li.older { display: none; }
 .log li { display: flex; align-items: flex-start; gap: 6px; }
 .text { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; padding-top: 1px; }
-.text a { color: inherit; text-decoration: underline; }
+.text a { pointer-events: auto; color: inherit; text-decoration: underline; }
 .log .hint { opacity: .6; display: block; }
 .polished { all: unset; pointer-events: auto; cursor: pointer; margin-inline-start: 4px; font-size: .85em; opacity: .55; vertical-align: baseline; }
 .polished[aria-pressed="true"] { opacity: .9; }
@@ -505,7 +518,10 @@ img.av { display: block; object-fit: cover; }
 .min .rowbox { grid-template-columns: 0fr 1fr; }
 .bar {
   pointer-events: auto; position: relative; display: flex; align-items: flex-end;
-  padding: var(--bar-pad); border-radius: var(--bar-r); border: var(--bar-b) solid var(--line); background: var(--glass);
+  padding: var(--bar-pad);
+  /* The host can square or round the top and bottom separately (::part(bar) works too). */
+  border-radius: var(--liagent-bar-radius-top, var(--bar-r)) var(--liagent-bar-radius-top, var(--bar-r)) var(--liagent-bar-radius-bottom, var(--bar-r)) var(--liagent-bar-radius-bottom, var(--bar-r));
+  border: var(--bar-b) solid var(--line); background: var(--glass);
   backdrop-filter: blur(12px) saturate(1.5); -webkit-backdrop-filter: blur(12px) saturate(1.5);
   touch-action: none; text-shadow: none;
   transition: border-color .15s ease-out, background-color .15s ease-out;
@@ -746,6 +762,15 @@ function iconNode(icon: string | Node | undefined, fallback: string): Node {
   return document.createTextNode(icon || fallback);
 }
 const keepFocus = (e: Event) => e.preventDefault();
+/** True when `el` can still scroll by `dy` (so the wheel is its own). */
+export function wheelScrolls(
+  el: { scrollTop: number; scrollHeight: number; clientHeight: number },
+  dy: number,
+): boolean {
+  if (dy < 0) return el.scrollTop > 0;
+  if (dy > 0) return el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+  return false;
+}
 /** The shadow root's parts, by id. */
 type Els = Record<
   | "box"
@@ -816,7 +841,13 @@ export class ChatBox extends Base {
   onSend?: (
     text: string,
     to?: string,
-    opts?: { source?: MessageSource; context?: ChatContext; attachments?: AttachmentRef[] },
+    opts?: {
+      source?: MessageSource;
+      context?: ChatContext;
+      attachments?: AttachmentRef[];
+      /** Host fields from the `beforesend` event's `detail.extra` (sent as the line's `ctx`). */
+      ctx?: Record<string, unknown>;
+    },
   ) => boolean;
   /** The user answered a pairing request. */
   onAnswer?: (type: AnswerType, p: PairInfo, answer: Answer) => void;
@@ -1880,7 +1911,7 @@ export class ChatBox extends Base {
   <div class="filerow" id="filerow" hidden></div>
   <div class="rowbox" id="rowbox">
     <div class="aim" id="aim" hidden></div>
-    <div class="bar" id="bar">
+    <div class="bar" id="bar" part="bar">
       <button type="button" class="tap mark" id="mark" title="${this.ui.markHint}">${ICONS.mark}<span class="dot" id="dot"></span></button>
       <div class="cell" id="lead"></div>
       <button type="button" class="tap treebtn" id="treebtn" aria-expanded="false" title="${this.ui.treeHint}">${ICONS.tree}<span class="evals" id="evals" aria-hidden="true" hidden></span><span class="thint" id="thint" role="status" hidden></span></button>
@@ -1950,6 +1981,26 @@ export class ChatBox extends Base {
       this.onColumnScroll();
       if (Date.now() - this.userScrollAt < USER_SCROLL_MS) this.scrolledByUser();
     });
+    // A link in a line: no focus on press, so the log does not re-lay out
+    // (collapsed-count shows more lines on focus) between press and click.
+    column.addEventListener("mousedown", (e) => {
+      if ((e.target as Element | null)?.closest?.("a[href]")) e.preventDefault();
+    });
+    // The wheel over the bar scrolls the history first (the input keeps its
+    // own wheel while it can still scroll); at the history's end it goes on
+    // to the page.
+    bar.addEventListener(
+      "wheel",
+      (e) => {
+        const ta = this.els.input as HTMLTextAreaElement | undefined;
+        if (ta && e.composedPath().includes(ta) && wheelScrolls(ta, e.deltaY)) return;
+        if (!wheelScrolls(column, e.deltaY)) return;
+        e.preventDefault();
+        column.scrollTop += e.deltaY;
+        userScroll();
+      },
+      { passive: false },
+    );
     const userScroll = () => {
       this.userScrollAt = Date.now();
       this.ownPin = false;
@@ -2058,6 +2109,8 @@ export class ChatBox extends Base {
     ta.addEventListener("focus", () => {
       this.typing = true;
       this.renderLayout();
+      // Focusing the input lands the history on the newest line.
+      requestAnimationFrame(() => this.toEnd());
     });
     ta.addEventListener("blur", () => {
       this.typing = false;
@@ -2464,12 +2517,19 @@ export class ChatBox extends Base {
     const source = draftSource(this._draft, this.pure);
     const context = this._attached ?? undefined;
     const attachments = stored.map((p) => p.ref!);
+    // The host's last word on the line: `beforesend` (cancelable). Each listener
+    // adds its own fields to detail.extra (Object.assign, so several compose);
+    // they go out as the line's `ctx`. preventDefault() keeps the draft unsent.
+    const before = beforeSendEvent({ text, to, source, context, attachments });
+    if (!this.dispatchEvent(before)) return false;
+    const ctx = cleanCtx(before.detail.extra);
     const opts =
-      source || context || attachments.length
+      source || context || attachments.length || ctx
         ? {
             ...(source ? { source } : {}),
             ...(context ? { context } : {}),
             ...(attachments.length ? { attachments } : {}),
+            ...(ctx ? { ctx } : {}),
           }
         : undefined;
     if (!this.onSend?.(text, to, opts)) {
@@ -2662,6 +2722,9 @@ export class ChatBox extends Base {
     const { box, column, slot, mark, treebtn, tree, tclose, ftree } = this.els as Els;
     const ui = this.ui;
     box.classList.toggle("min", !this.open);
+    // Reflected on the host so the page can style around it: [open] or [min].
+    this.toggleAttribute("open", this.open);
+    this.toggleAttribute("min", !this.open);
     box.classList.toggle("on", this._micActive || this.panel !== "none");
     box.classList.toggle("typing", this.typing && this.open);
     this.renderAttached();

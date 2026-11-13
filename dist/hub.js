@@ -1249,7 +1249,8 @@ var ChatHub = class {
 				...m.to ? { to: m.to } : {},
 				...m.source ? { source: m.source } : {},
 				...m.context ? { context: m.context } : {},
-				...m.attachments ? { attachments: m.attachments } : {}
+				...m.attachments ? { attachments: m.attachments } : {},
+				...m.ctx ? { ctx: m.ctx } : {}
 			});
 		}
 		if (m.type === "page") return this.relabel(ws, page, m.label);

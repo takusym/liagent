@@ -178,7 +178,8 @@ function connectHub(box, opts) {
 		...to ? { to } : {},
 		...opts?.source ? { source: opts.source } : {},
 		...opts?.context ? { context: opts.context } : {},
-		...opts?.attachments?.length ? { attachments: opts.attachments } : {}
+		...opts?.attachments?.length ? { attachments: opts.attachments } : {},
+		...opts?.ctx ? { ctx: opts.ctx } : {}
 	});
 	box.onAnswer = (type, p, answer) => void send(ws, type === "deny" ? {
 		type,
