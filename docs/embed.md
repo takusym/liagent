@@ -731,6 +731,79 @@ The rules are pure functions in `liagent/ui` (`silenceFor`, `isQuiet`) for
 hosts that read aloud some other way. An older version kept a per-device
 `<storage-key>:quiet-hours` setting; the box removes it when it attaches.
 
+### Line context as a chip (`ctxRenderer`)
+
+A line's `ctx` (the fields `beforesend` listeners put in `detail.extra`) shows
+as a small chip (`part="ctx"`, a `<button>`) at the line's start instead of
+raw text. Click it, or focus it and press Enter or Space, to toggle a panel
+(`part="ctx-detail"`) with the detail; the chip carries `aria-expanded` and
+`aria-controls`.
+
+Legacy lines: any line of the text (not only the first) matching
+`/^\s*(>\s*)?\[ctx\]\s/` followed by JSON, as [syform]'s report chat writes it:
+
+```
+この会社、電話番号が違う
+[ctx] {"v":1,"page":"/reports/matsuda-list/","record":{"row":"松515","company":"株式会社…"}}
+```
+
+Each such line is removed from the visible text (the rest stays) and becomes
+its own chip, in order after the line's `ctx` chip (several lines = several
+chips, not merged). JSON that parses to a plain object is treated like
+`line.ctx` (same `cleanCtx` limits, 4000 chars) and goes through
+`ctxRenderer`; anything else shows its raw text as the title.
+
+```js
+box.ctxRenderer = (ctx, line) =>
+  ctx.table ? { icon: "🧾", title: `${ctx.table} #${ctx.row}`, detail: ctx.note } : null;
+```
+
+Return `{ icon?, title, detail? }`, or `null` for the default: a title from
+`record.company`, else `record.row`, else `title`, else `table` · `#row` · `page` · `selection`, and a detail of
+`key: value` lines. A throw or a view without a string title also falls back.
+Everything is set with `textContent`: no HTML from `ctx` or the hook, and
+`icon` is clipped to a few characters (an emoji or short string). Style with
+`::part(ctx)` and `::part(ctx-detail)`.
+
+### Presence: who else is on this node
+
+A strip (`part="presence"`) centred just above the input row shows who else
+is on the box's current node: up to 3 stacked 18px avatars, then `+N` only
+when more than 3 are present. Hover or focus previews up to 8 with names
+(agents as `[lane@host]`); a click opens everyone as a scrollable menu (Esc
+or an outside tap closes it). The page itself is left out; hidden when no
+one else is here.
+
+The hub pushes it over the page socket, never polled:
+
+```jsonc
+// hub → page: a snapshot, on join and whenever the page's node changes
+{"type":"presence","node":"/words","at":1794565000000,
+ "members":[
+   {"id":"a1b2c3d4","kind":"user","label":"Taku","avatar":"https://…/t.png"},
+   {"id":"<pair id>","kind":"agent","label":"syform@symubu","lane":"syform","host":"symubu"}
+ ]}
+// hub → page: then changes (join: new or updated members; leave: ids)
+{"type":"presence-delta","node":"/words","join":[{"id":"…","kind":"user","label":"Ann"}],"leave":["<id>"],"at":1794565001000}
+// page → hub: the node the box aims at (also ?node=/words on connect)
+{"type":"page","node":"/words"}
+```
+
+Members: `id` (≤64), `kind` `"user" | "agent"`, `label` (≤80: a user's
+display name, an agent's `lane@host`), optional `avatar` (https: or a raster
+`data:image/png|jpeg|gif|webp|avif;base64` URL, ≤8192; anything else is
+dropped), `lane`, `host` (≤40). At most 200 members; control and bidi
+characters are stripped (`parsePresence` in `liagent/protocol`). The box
+leaves out the member whose `id` is its page id (`state.self`).
+
+`ChatHub` emits it per thread and node: a page sees the pages of its own
+thread on its node and the agents that get that node's lines (the owner:
+listeners at the node or an ancestor; a friend: agents paired for them).
+Override `protected presenceUser(ws, page)` to name users from your session:
+return `{ label, avatar? }`, or null to leave a page out (default: a friend's
+email, "you" on the owner's pages). Without connectHub, feed frames to
+`box.presence(frame)` and send the node from `box.onTarget`.
+
 ## 7. Security notes
 
 - **Cross-site WebSocket hijacking:** `routeChat` refuses a page socket

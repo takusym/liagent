@@ -271,6 +271,32 @@ declare class ChatHub {
   private state;
   /** Send every page its audience's state; `skip` is left out of the sending only. */
   private broadcast;
+  /** What each page was last told (its node, and each member as JSON), so only changes go out. */
+  private sentPresence;
+  /**
+   * Who a page is in the presence list: `label` (a display name) and an
+   * optional `avatar` (https: or data:image; others are dropped). Override
+   * it to resolve the user from your own session; null leaves the page out.
+   * Default: the friend's email, else "you" on the owner's pages.
+   */
+  protected presenceUser(_ws: Socket, page: {
+    id: string;
+    thread: string;
+    label: string;
+    email?: string;
+  }): {
+    label: string;
+    avatar?: string;
+  } | null;
+  /**
+   * Presence, per thread and node: a page sees the pages of its own thread
+   * on its node (kind "user", the page itself included; the box leaves
+   * itself out) and the agents that get that node's lines in its thread
+   * (owner: the listeners at the node or an ancestor; a friend: agents
+   * paired for them). First a snapshot {type:"presence"} (on join and node
+   * change), then {type:"presence-delta"} with what joined or left.
+   */
+  private sendPresence;
   private controller;
   /** One thread's kept chat, oldest first. */
   history(thread?: string): Promise<ChatMessage[]>;

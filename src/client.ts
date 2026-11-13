@@ -14,6 +14,10 @@
 // reconnects when the network drops it, never after a close the hub meant
 // (4xxx) or one that never opened (refused). No timer touches the network.
 //
+// Presence: the page names its node (?node= on connect, then {type:"page",
+// node} when box.setTarget moves it); the hub's presence frames go to
+// box.presence (validated by parsePresence).
+//
 // Eval: a hub may send {type:"eval", id, code, to} from an agent the owner
 // approved on this device. It runs only with `evalCode: true`; the result
 // goes back to that agent. Off by default — running code is the site's call.
@@ -26,6 +30,7 @@ import {
   type HubState,
   type PairInfo,
   compile,
+  parsePresence,
   summarize,
   trimHistory,
 } from "./protocol.ts";
@@ -74,13 +79,14 @@ const savePageId = (id: string) => {
   } catch {}
 };
 
-function socketUrl(url: string, label: string) {
+function socketUrl(url: string, label: string, node: string) {
   const u = new URL(url, location.href);
   if (u.protocol === "http:") u.protocol = "ws:";
   if (u.protocol === "https:") u.protocol = "wss:";
   u.searchParams.set("label", label);
   const page = readPageId();
   if (page) u.searchParams.set("page", page);
+  if (node && node !== "/") u.searchParams.set("node", node);
   return u.toString();
 }
 
@@ -142,12 +148,13 @@ export function connectHub(box: ChatBox, opts: HubOptions): HubConnection {
     box.sessions = [];
     box.pages = [];
     box.busy = false;
+    box.presence(null);
   };
 
   const connect = () => {
     if (ws) return;
     const label = (sentLabel = pageLabel());
-    const sock = new WebSocket(socketUrl(opts.url, label));
+    const sock = new WebSocket(socketUrl(opts.url, label, box.target));
     ws = sock;
     sock.onopen = () => {
       opened.add(sock);
@@ -203,6 +210,13 @@ export function connectHub(box: ChatBox, opts: HubOptions): HubConnection {
           // The agent polished a voice line: in place, never read aloud again.
           box.edit(msg as unknown as EditedEvent);
           return;
+        case "presence":
+        case "presence-delta": {
+          // Who else is on this node: parsePresence checks every field.
+          const f = parsePresence(msg);
+          if (f) box.presence(f);
+          return;
+        }
         case "eval":
           if (!opts.evalCode) return;
           if (typeof msg.id !== "string" || typeof msg.to !== "string") return;
@@ -262,6 +276,8 @@ export function connectHub(box: ChatBox, opts: HubOptions): HubConnection {
     );
   box.onEnd = (p) => void send(ws, { type: "revoke", pair: p.pair });
   box.onEndPage = (id) => void send(ws, { type: "end-page", id });
+  // The box aims at another node: the hub moves this page's presence there.
+  box.onTarget = (node) => void send(ws, { type: "page", node });
 
   // Client-side navigation: tell the hub this page's new label (debounced),
   // so agents hear page-changed. History API calls and back/forward both.
