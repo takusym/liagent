@@ -28,4 +28,7 @@ describe("box CSS", () => {
     expect(src).toContain('this.toggleAttribute("open", this.open);');
     expect(src).toContain('this.toggleAttribute("min", !this.open);');
   });
+  it("links in a line take clicks (the log is pointer-events: none)", () => {
+    expect(src).toContain(".text a { pointer-events: auto;");
+  });
 });

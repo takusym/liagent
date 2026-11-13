@@ -131,7 +131,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 :host(:not(:focus-within)) .log li.older { display: none; }
 .log li { display: flex; align-items: flex-start; gap: 6px; }
 .text { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; padding-top: 1px; }
-.text a { color: inherit; text-decoration: underline; }
+.text a { pointer-events: auto; color: inherit; text-decoration: underline; }
 .log .hint { opacity: .6; display: block; }
 .polished { all: unset; pointer-events: auto; cursor: pointer; margin-inline-start: 4px; font-size: .85em; opacity: .55; vertical-align: baseline; }
 .polished[aria-pressed="true"] { opacity: .9; }
