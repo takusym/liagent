@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
+import { wheelScrolls } from "../src/box.ts";
 
 // `font: 16px/1.35 inherit` is invalid (inherit cannot be mixed into the shorthand), so browsers
 // dropped the whole declaration: the textarea fell back to 13.33px and iOS zoomed in on focus.
@@ -30,5 +31,19 @@ describe("box CSS", () => {
   });
   it("links in a line take clicks (the log is pointer-events: none)", () => {
     expect(src).toContain(".text a { pointer-events: auto;");
+  });
+  it("history takes the wheel while in use; at its end the page scrolls", () => {
+    expect(src).toContain(
+      ".box:focus-within .column, .box.on .column, .box.typing .column { pointer-events: auto; }",
+    );
+    expect(src).toContain(".log li { pointer-events: auto; }");
+  });
+  it("the input keeps the wheel only while it can still scroll", () => {
+    const el = (top: number) => ({ scrollTop: top, scrollHeight: 200, clientHeight: 100 });
+    expect(wheelScrolls(el(0), -10)).toBe(false);
+    expect(wheelScrolls(el(0), 10)).toBe(true);
+    expect(wheelScrolls(el(100), 10)).toBe(false);
+    expect(wheelScrolls(el(50), -10)).toBe(true);
+    expect(wheelScrolls({ scrollTop: 0, scrollHeight: 40, clientHeight: 40 }, 10)).toBe(false);
   });
 });

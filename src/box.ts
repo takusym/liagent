@@ -454,6 +454,10 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   max-height: var(--liagent-log-max, 4.4rem); min-height: 3rem; overflow-y: auto; padding: 6px 8px;
   scrollbar-width: none; transition: max-height .15s ease-out;
 }
+/* While the box is in use the history takes the wheel (its gaps too); at rest
+   only the lines do, so the empty space stays click-through. */
+.box:focus-within .column, .box.on .column, .box.typing .column { pointer-events: auto; }
+.log li { pointer-events: auto; }
 .column::-webkit-scrollbar { display: none; }
 .column.wide { max-height: var(--liagent-log-max-wide, 30vh); }
 .column.fade { -webkit-mask-image: linear-gradient(to bottom, transparent, black .9rem); mask-image: linear-gradient(to bottom, transparent, black .9rem); }
@@ -758,6 +762,15 @@ function iconNode(icon: string | Node | undefined, fallback: string): Node {
   return document.createTextNode(icon || fallback);
 }
 const keepFocus = (e: Event) => e.preventDefault();
+/** True when `el` can still scroll by `dy` (so the wheel is its own). */
+export function wheelScrolls(
+  el: { scrollTop: number; scrollHeight: number; clientHeight: number },
+  dy: number,
+): boolean {
+  if (dy < 0) return el.scrollTop > 0;
+  if (dy > 0) return el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+  return false;
+}
 /** The shadow root's parts, by id. */
 type Els = Record<
   | "box"
@@ -1968,6 +1981,26 @@ export class ChatBox extends Base {
       this.onColumnScroll();
       if (Date.now() - this.userScrollAt < USER_SCROLL_MS) this.scrolledByUser();
     });
+    // A link in a line: no focus on press, so the log does not re-lay out
+    // (collapsed-count shows more lines on focus) between press and click.
+    column.addEventListener("mousedown", (e) => {
+      if ((e.target as Element | null)?.closest?.("a[href]")) e.preventDefault();
+    });
+    // The wheel over the bar scrolls the history first (the input keeps its
+    // own wheel while it can still scroll); at the history's end it goes on
+    // to the page.
+    bar.addEventListener(
+      "wheel",
+      (e) => {
+        const ta = this.els.input as HTMLTextAreaElement | undefined;
+        if (ta && e.composedPath().includes(ta) && wheelScrolls(ta, e.deltaY)) return;
+        if (!wheelScrolls(column, e.deltaY)) return;
+        e.preventDefault();
+        column.scrollTop += e.deltaY;
+        userScroll();
+      },
+      { passive: false },
+    );
     const userScroll = () => {
       this.userScrollAt = Date.now();
       this.ownPin = false;
@@ -2076,6 +2109,8 @@ export class ChatBox extends Base {
     ta.addEventListener("focus", () => {
       this.typing = true;
       this.renderLayout();
+      // Focusing the input lands the history on the newest line.
+      requestAnimationFrame(() => this.toEnd());
     });
     ta.addEventListener("blur", () => {
       this.typing = false;
