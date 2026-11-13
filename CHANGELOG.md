@@ -4,6 +4,7 @@
 
 ### Added
 - Box style hooks for the host: `part="bar"`, `--liagent-bar-radius-top` / `--liagent-bar-radius-bottom` (default: the round bar), and the host reflects the layout as `[open]` or `[min]`. (Hiding the state tree was already there: `tree-placement="hidden"`.)
+- `beforesend` event on the box (cancelable): listeners add fields to `detail.extra` (several compose); they go out as the chat line's `ctx` (plain JSON object, max 4000 chars as JSON, kept by parsePageMessage and the hub). No listener = the same message as before.
 
 - **Links in messages.** http(s) URLs in a line's text (also polished/raw
   text) become links, built as DOM nodes (`linkify`, `src/linkify.ts`).

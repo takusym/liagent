@@ -19,6 +19,10 @@ declare const EVAL_GRANT_MS: number;
 declare const CHAT_MS: number;
 /** Largest chat message (owner's or agent's), in characters. */
 declare const MAX_CHAT = 4000;
+/** The longest `ctx` (host fields on a chat line), as JSON. */
+declare const MAX_CTX = 4000;
+/** A chat line's `ctx`: a non-empty plain object that round-trips as JSON within MAX_CTX; else undefined. */
+declare function cleanCtx(v: unknown): Record<string, unknown> | undefined;
 /** Chat messages the hub keeps (and sends a page on connect). */
 declare const CHAT_HISTORY = 200;
 /** A page shows the spinner while the agent's last busy beat is younger than this. */
@@ -81,6 +85,11 @@ type ChatMessage = {
    * (`files.url(ref)`). Checked by cleanAttachments; owner lines only.
    */
   attachments?: AttachmentRef[];
+  /**
+   * Host fields added in the box's `beforesend` event (`detail.extra`): a
+   * plain JSON object, at most MAX_CTX characters as JSON. Checked by cleanCtx.
+   */
+  ctx?: Record<string, unknown>;
 };
 /** Where an owner line came from: "stt" (the box's mic). Absent = typed. */
 type MessageSource = "stt";
@@ -200,6 +209,7 @@ type PageMessage = {
   source?: MessageSource;
   context?: ChatContext;
   attachments?: AttachmentRef[];
+  ctx?: Record<string, unknown>;
 } | {
   type: "result";
   id: string;
@@ -400,5 +410,5 @@ declare function cleanFileName(raw: unknown): string;
  */
 declare function cleanAttachments(raw: unknown): AttachmentRef[] | undefined;
 //#endregion
-export { APPROVAL_MS, AttachmentRef, AvatarSrc, BUSY_AFTER_REPLY_MS, BUSY_MS, CHAT_HISTORY, CHAT_MS, ChatContext, ChatMessage, ContextFile, ControllerMessage, EVAL_GRANT_MS, EditMark, EditedEvent, HubState, MAX_AGENT_ID, MAX_ATTACHMENTS, MAX_ATTACHMENT_NAME, MAX_CHAT, MAX_CODE, MAX_CONTEXT_FILES, MAX_CONTEXT_PATH, MAX_CONTEXT_TITLE, MAX_EDITS, MAX_FILE_NAME, MAX_FILE_TYPE, MAX_FILE_URL, MAX_LABEL, MAX_NODE_PATH, MAX_RESULT, MAX_SELECTION, MessageSource, NodeGrant, PAGES_GONE_MS, PAGE_DEBOUNCE_MS, PENDING_MS, PageInfo, PageMessage, PairInfo, ROOT_NODE, Scope, Sender, agentIdOf, applyEdit, chatText, cleanAttachments, cleanContext, cleanFileName, cleanLabel, commonAncestor, compile, completeNode, dictatedDraft, draftSource, isPageId, isWithin, lineNode, matchesTarget, mayAddress, mergeContext, nodeHue, nodePath, parseAddress, parseControllerMessage, parsePageMessage, pathLabel, pickLang, pickVoice, routeTo, shortCode, summarize, trimHistory };
+export { APPROVAL_MS, AttachmentRef, AvatarSrc, BUSY_AFTER_REPLY_MS, BUSY_MS, CHAT_HISTORY, CHAT_MS, ChatContext, ChatMessage, ContextFile, ControllerMessage, EVAL_GRANT_MS, EditMark, EditedEvent, HubState, MAX_AGENT_ID, MAX_ATTACHMENTS, MAX_ATTACHMENT_NAME, MAX_CHAT, MAX_CODE, MAX_CONTEXT_FILES, MAX_CONTEXT_PATH, MAX_CONTEXT_TITLE, MAX_CTX, MAX_EDITS, MAX_FILE_NAME, MAX_FILE_TYPE, MAX_FILE_URL, MAX_LABEL, MAX_NODE_PATH, MAX_RESULT, MAX_SELECTION, MessageSource, NodeGrant, PAGES_GONE_MS, PAGE_DEBOUNCE_MS, PENDING_MS, PageInfo, PageMessage, PairInfo, ROOT_NODE, Scope, Sender, agentIdOf, applyEdit, chatText, cleanAttachments, cleanContext, cleanCtx, cleanFileName, cleanLabel, commonAncestor, compile, completeNode, dictatedDraft, draftSource, isPageId, isWithin, lineNode, matchesTarget, mayAddress, mergeContext, nodeHue, nodePath, parseAddress, parseControllerMessage, parsePageMessage, pathLabel, pickLang, pickVoice, routeTo, shortCode, summarize, trimHistory };
 //# sourceMappingURL=protocol.d.ts.map
