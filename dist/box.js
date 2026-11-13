@@ -1,4 +1,4 @@
 import { Et as fileAction, Nt as selectionAction, Ot as mediaAction, jt as pageSelection } from "./speak-rules-DB_aRjW_.js";
-import { a as avatarColors, c as initialOf, d as memoryFiles, i as when, l as lineAvatar, n as defineChatBox, o as avatarSrcs, r as pageHint, s as hashId, t as ChatBox } from "./box-ByeBwz2t.js";
+import { a as avatarColors, c as initialOf, d as memoryFiles, i as when, l as lineAvatar, n as defineChatBox, o as avatarSrcs, r as pageHint, s as hashId, t as ChatBox } from "./box-ax0EH0xb.js";
 
 export { ChatBox, avatarColors, avatarSrcs, defineChatBox, fileAction, hashId, initialOf, lineAvatar, mediaAction, memoryFiles, pageHint, pageSelection, selectionAction, when };
