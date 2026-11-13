@@ -100,25 +100,56 @@ describe("ctxViewFor (custom renderer)", () => {
   });
 });
 
-describe("parseLegacyCtx", () => {
-  it("splits the [ctx] summary from the text", () => {
-    expect(parseLegacyCtx("[ctx] orders #42\nplease fix")).toEqual({
-      summary: "orders #42",
-      text: "please fix",
-    });
-    expect(parseLegacyCtx("> [ctx] page /a\n\nhi")).toEqual({ summary: "page /a", text: "hi" });
-    expect(parseLegacyCtx("[ctx] only")).toEqual({ summary: "only", text: "" });
+describe("parseLegacyCtx ([syform] report lines)", () => {
+  const LINE =
+    '[ctx] {"v":1,"page":"/reports/matsuda-list/","record":{"row":"松515","company":"株式会社…"}}';
+  const CTX = {
+    v: 1,
+    page: "/reports/matsuda-list/",
+    record: { row: "松515", company: "株式会社…" },
+  };
+  it("takes a [ctx] line after the text out, as a ctx object", () => {
+    const r = parseLegacyCtx(`この会社、電話番号が違う\n${LINE}`);
+    expect(r).toEqual({ ctxs: [{ ctx: CTX }], text: "この会社、電話番号が違う" });
+    expect(defaultCtxView(CTX).title).toBe("株式会社…");
+  });
+  it("also before or between text, and quoted", () => {
+    expect(parseLegacyCtx(`${LINE}\nhi`)?.text).toBe("hi");
+    expect(parseLegacyCtx(`a\n> ${LINE}\nb`)).toEqual({ ctxs: [{ ctx: CTX }], text: "a\nb" });
+  });
+  it("title falls back record.company → record.row → page", () => {
+    expect(defaultCtxView({ page: "/p", record: { row: "松515" } }).title).toBe("松515");
+    expect(defaultCtxView({ page: "/p", record: {} }).title).toBe("/p");
+  });
+  it("a line that is not a JSON object keeps its raw text as the title", () => {
+    const r = parseLegacyCtx("x\n[ctx] {broken json\ny");
+    expect(r).toEqual({ ctxs: [{ raw: "{broken json" }], text: "x\ny" });
+    expect(legacyCtxView("{broken json").title).toBe("{broken json");
+    expect(parseLegacyCtx("[ctx] [1,2]")?.ctxs).toEqual([{ raw: "[1,2]" }]);
+    expect(parseLegacyCtx(`[ctx] {"a":"${"x".repeat(5000)}"}`)?.ctxs[0]).toHaveProperty("raw");
+  });
+  it("several [ctx] lines give several chips, in order", () => {
+    const r = parseLegacyCtx(`${LINE}\nmsg\n[ctx] {"page":"/b"}`);
+    expect(r?.ctxs).toEqual([{ ctx: CTX }, { ctx: { page: "/b" } }]);
+    expect(r?.text).toBe("msg");
   });
   it("leaves other lines alone", () => {
     expect(parseLegacyCtx("hello [ctx] x")).toBeNull();
     expect(parseLegacyCtx("[ctxx] x")).toBeNull();
+    expect(parseLegacyCtx("[ctx]")).toBeNull();
   });
-  it("the legacy view shows the summary", () => {
-    expect(legacyCtxView("orders #42")).toEqual({
-      icon: CTX_ICON,
-      title: "orders #42",
-      detail: "orders #42",
-    });
+  it("XSS in JSON values stays text", () => {
+    const evil = "<img src=x onerror=alert(1)>";
+    const r = parseLegacyCtx(
+      `hi\n[ctx] {"page":"${evil}","record":{"company":"<script>alert(2)</script>"}}`,
+    );
+    const c = r!.ctxs[0] as { ctx: Record<string, unknown> };
+    const view = defaultCtxView(c.ctx);
+    expect(view.title).toBe("<script>alert(2)</script>");
+    const els = ctxChipEls(doc, view, true, "m#0", () => {}) as unknown as El[];
+    const nodes = els.flatMap(all);
+    expect(nodes.some((e) => e.innerHTMLSet)).toBe(false);
+    expect(nodes.some((e) => e.textContent.includes(evil))).toBe(true);
   });
 });
 

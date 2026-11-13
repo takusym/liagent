@@ -737,9 +737,21 @@ A line's `ctx` (the fields `beforesend` listeners put in `detail.extra`) shows
 as a small chip (`part="ctx"`, a `<button>`) at the line's start instead of
 raw text. Click it, or focus it and press Enter or Space, to toggle a panel
 (`part="ctx-detail"`) with the detail; the chip carries `aria-expanded` and
-`aria-controls`. Legacy lines whose text starts with `[ctx] summary` (also
-quoted, `> [ctx] …`) get the same chip: the first line is taken out of the
-visible text and becomes the chip's title and detail.
+`aria-controls`.
+
+Legacy lines: any line of the text (not only the first) matching
+`/^\s*(>\s*)?\[ctx\]\s/` followed by JSON, as [syform]'s report chat writes it:
+
+```
+この会社、電話番号が違う
+[ctx] {"v":1,"page":"/reports/matsuda-list/","record":{"row":"松515","company":"株式会社…"}}
+```
+
+Each such line is removed from the visible text (the rest stays) and becomes
+its own chip, in order after the line's `ctx` chip (several lines = several
+chips, not merged). JSON that parses to a plain object is treated like
+`line.ctx` (same `cleanCtx` limits, 4000 chars) and goes through
+`ctxRenderer`; anything else shows its raw text as the title.
 
 ```js
 box.ctxRenderer = (ctx, line) =>
@@ -747,7 +759,7 @@ box.ctxRenderer = (ctx, line) =>
 ```
 
 Return `{ icon?, title, detail? }`, or `null` for the default: a title from
-`title`, else `table` · `#row` · `page` · `selection`, and a detail of
+`record.company`, else `record.row`, else `title`, else `table` · `#row` · `page` · `selection`, and a detail of
 `key: value` lines. A throw or a view without a string title also falls back.
 Everything is set with `textContent`: no HTML from `ctx` or the hook, and
 `icon` is clipped to a few characters (an emoji or short string). Style with

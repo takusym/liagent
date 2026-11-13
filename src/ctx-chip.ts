@@ -1,7 +1,9 @@
+import { cleanCtx } from "./protocol.ts";
+
 // A chat line's ctx as a small chip that expands on click (box.ctxRenderer).
 //
 // A line's `ctx` (host fields from the beforesend event, see src/before-send.ts)
-// and legacy lines whose text starts with a "[ctx] …" quote prefix render as
+// and legacy "[ctx] {json}" lines anywhere in the text (removed from it) render as
 // a chip (part="ctx", a <button> with aria-expanded) instead of raw text;
 // clicking it (or Enter/Space, native to a button) toggles a panel
 // (part="ctx-detail") with the detail. Everything is text: textContent only,
@@ -35,15 +37,21 @@ function show(v: unknown): string {
   }
 }
 
-/** The default view: a title from title/table/row/page/selection, a detail as "key: value" lines. */
+/** The default view: a title from record.company, else record.row, else title/table/row/page/selection; a detail as "key: value" lines. */
 export function defaultCtxView(ctx: Record<string, unknown>): CtxView {
   const parts: string[] = [];
-  for (const k of TITLE_KEYS) {
-    const v = flat(show(ctx[k]));
-    if (!v) continue;
-    parts.push(k === "row" ? `#${v}` : v);
-    if (k === "title") break; // an explicit title is enough
-  }
+  // [syform]'s report lines: {page, record: {row, company, …}}.
+  const rec =
+    ctx.record && typeof ctx.record === "object" ? (ctx.record as Record<string, unknown>) : null;
+  const named = rec && (flat(show(rec.company)) || flat(show(rec.row)));
+  if (named) parts.push(named);
+  else
+    for (const k of TITLE_KEYS) {
+      const v = flat(show(ctx[k]));
+      if (!v) continue;
+      parts.push(k === "row" ? `#${v}` : v);
+      if (k === "title") break; // an explicit title is enough
+    }
   const keys = Object.keys(ctx);
   const title = clip(parts.join(" · ") || keys.slice(0, 3).join(", ") || "ctx", MAX_TITLE);
   const detail = keys.map((k) => `${k}: ${clip(flat(show(ctx[k])), MAX_VALUE)}`).join("\n");
@@ -78,20 +86,47 @@ export function ctxViewFor<M>(
   return defaultCtxView(ctx);
 }
 
+/** One legacy "[ctx] …" line: its JSON object (cleanCtx limits), or the raw text when it is not one. */
+export type LegacyCtx = { ctx: Record<string, unknown> } | { raw: string };
+const LEGACY = /^\s*(?:>\s*)?\[ctx\]\s(.*)$/;
+
 /**
- * A legacy line "[ctx] summary\nrest" (optionally quoted "> [ctx] …"): the
- * summary (its first line) and the text after it. null when there is no prefix.
+ * Legacy "[ctx] {json}" lines anywhere in a message (also quoted "> [ctx] …"),
+ * as [syform] writes them: each such line is taken out of the text and
+ * becomes one chip (several lines = several chips, in order). null when there is none.
  */
-export function parseLegacyCtx(text: string): { summary: string; text: string } | null {
-  const m = /^\s*(?:>\s*)?\[ctx\][ \t]*([^\n]*)(?:\n([\s\S]*))?$/.exec(text);
-  if (!m) return null;
-  return { summary: (m[1] ?? "").trim(), text: (m[2] ?? "").replace(/^\s*\n/, "") };
+export function parseLegacyCtx(text: string): { ctxs: LegacyCtx[]; text: string } | null {
+  const ctxs: LegacyCtx[] = [];
+  const kept: string[] = [];
+  for (const line of text.split("\n")) {
+    const m = LEGACY.exec(line);
+    if (!m) {
+      kept.push(line);
+      continue;
+    }
+    const rest = (m[1] ?? "").trim();
+    let obj: Record<string, unknown> | undefined;
+    try {
+      obj = cleanCtx(JSON.parse(rest));
+    } catch {
+      obj = undefined;
+    }
+    ctxs.push(obj ? { ctx: obj } : { raw: rest });
+  }
+  if (!ctxs.length) return null;
+  return {
+    ctxs,
+    text: kept
+      .join("\n")
+      .replace(/^\s*\n|\n\s*$/g, "")
+      .trim(),
+  };
 }
 
-/** The view for a legacy "[ctx] …" summary. */
-export function legacyCtxView(summary: string): CtxView {
-  const s = flat(summary);
-  return { icon: CTX_ICON, title: clip(s || "ctx", MAX_TITLE), ...(s ? { detail: summary } : {}) };
+/** The view for a legacy "[ctx]" line that is not a JSON object: its raw text as the title. */
+export function legacyCtxView(raw: string): CtxView {
+  const s = flat(raw);
+  return { icon: CTX_ICON, title: clip(s || "ctx", MAX_TITLE), ...(s ? { detail: raw } : {}) };
 }
 
 type Doc = { createElement(tag: string): HTMLElement };

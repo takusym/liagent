@@ -118,11 +118,12 @@
 //     is sent to stays the host's (the selected channel decides `to`). Setting either re-renders;
 //     neither set = no tags, every line.
 //   - ctx chip (part="ctx", panel part="ctx-detail"): a line's `ctx` (and a
-//     legacy text prefix "[ctx] summary\n…", stripped from the text) shows as
-//     a small button at the line's start, not raw text; click or Enter/Space
+//     legacy "[ctx] {json}" line anywhere in the text, removed from it; one
+//     chip per line) shows as a small button at the line's start, not raw text; click or Enter/Space
 //     toggles a panel with the detail (aria-expanded). box.ctxRenderer =
 //     (ctx, line) => ({ icon?, title, detail? } | null) shapes it; null = the
-//     default (title from title/table/row/page/selection, key: value detail).
+//     default (title from record.company / record.row, else title/table/row/
+//     page/selection; key: value detail).
 //     Text only: no HTML from ctx or the hook; icon is a short string. See src/ctx-chip.ts.
 //   - Presence (part="presence"): who else is on the box's node, from the
 //     hub's {type:"presence"} snapshot and {type:"presence-delta"} frames
@@ -3197,27 +3198,27 @@ export class ChatBox extends Base {
     // Only the user's own lines carry stored files (the hub drops them elsewhere).
     const files =
       m.attachments?.length && m.from !== "agent" ? [this.sentFiles(m.attachments)] : [];
-    // The line's ctx (or a legacy "[ctx] …" prefix) as a chip at the line's start.
+    // The line's ctx, then each legacy "[ctx] …" line (taken out of the text), as chips at the line's start.
     const legacy = parseLegacyCtx(m.text);
-    const view = m.ctx
-      ? ctxViewFor(this._ctxRenderer, m.ctx, m)
-      : legacy
-        ? legacyCtxView(legacy.summary)
-        : null;
-    const chip = view
-      ? ctxChipEls(document, view, this.openCtx.has(m.id), m.id, () => {
-          if (!this.openCtx.delete(m.id)) this.openCtx.add(m.id);
-          onToggle();
-        })
-      : [];
-    const shown = legacy ? { ...m, text: legacy.text } : m;
-    return [
-      ...ctx,
-      ...files,
-      ...chip.slice(0, 1),
-      ...this.lineText(shown, onToggle),
-      ...chip.slice(1),
+    const views = [
+      ...(m.ctx ? [ctxViewFor(this._ctxRenderer, m.ctx, m)] : []),
+      ...(legacy?.ctxs ?? []).map((c) =>
+        "ctx" in c ? ctxViewFor(this._ctxRenderer, c.ctx, m) : legacyCtxView(c.raw),
+      ),
     ];
+    const chips: Node[] = [];
+    const panels: Node[] = [];
+    views.forEach((view, i) => {
+      const key = `${m.id}#${i}`;
+      const [chip, panel] = ctxChipEls(document, view, this.openCtx.has(key), key, () => {
+        if (!this.openCtx.delete(key)) this.openCtx.add(key);
+        onToggle();
+      });
+      if (chip) chips.push(chip);
+      if (panel) panels.push(panel);
+    });
+    const shown = legacy ? { ...m, text: legacy.text } : m;
+    return [...ctx, ...files, ...chips, ...this.lineText(shown, onToggle), ...panels];
   }
   /** What a line carried (a quote, its files) above its text; text only, never HTML. */
   private contextNodes(c: ChatContext, key: string, onToggle: () => void): Node[] {
