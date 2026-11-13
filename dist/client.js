@@ -1,4 +1,4 @@
-import { PAGE_DEBOUNCE_MS, compile, summarize, trimHistory } from "./protocol.js";
+import { PAGE_DEBOUNCE_MS, compile, parsePresence, summarize, trimHistory } from "./protocol.js";
 
 //#region src/client.ts
 /** Hidden this long before the socket is dropped. */
@@ -19,13 +19,14 @@ const savePageId = (id) => {
 		if (id) sessionStorage.setItem(PAGE_KEY, id);
 	} catch {}
 };
-function socketUrl(url, label) {
+function socketUrl(url, label, node) {
 	const u = new URL(url, location.href);
 	if (u.protocol === "http:") u.protocol = "ws:";
 	if (u.protocol === "https:") u.protocol = "wss:";
 	u.searchParams.set("label", label);
 	const page = readPageId();
 	if (page) u.searchParams.set("page", page);
+	if (node && node !== "/") u.searchParams.set("node", node);
 	return u.toString();
 }
 function connectHub(box, opts) {
@@ -90,11 +91,12 @@ function connectHub(box, opts) {
 		box.sessions = [];
 		box.pages = [];
 		box.busy = false;
+		box.presence(null);
 	};
 	const connect = () => {
 		if (ws) return;
 		const label = sentLabel = pageLabel();
-		const sock = new WebSocket(socketUrl(opts.url, label));
+		const sock = new WebSocket(socketUrl(opts.url, label, box.target));
 		ws = sock;
 		sock.onopen = () => {
 			opened.add(sock);
@@ -143,6 +145,12 @@ function connectHub(box, opts) {
 				case "edited":
 					box.edit(msg);
 					return;
+				case "presence":
+				case "presence-delta": {
+					const f = parsePresence(msg);
+					if (f) box.presence(f);
+					return;
+				}
 				case "eval":
 					if (!opts.evalCode) return;
 					if (typeof msg.id !== "string" || typeof msg.to !== "string") return;
@@ -197,6 +205,10 @@ function connectHub(box, opts) {
 	box.onEndPage = (id) => void send(ws, {
 		type: "end-page",
 		id
+	});
+	box.onTarget = (node) => void send(ws, {
+		type: "page",
+		node
 	});
 	const navigated = () => {
 		clearTimeout(nav);

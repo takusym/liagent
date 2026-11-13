@@ -237,10 +237,13 @@ function parsePageMessage(raw) {
 	}
 	if (m.type === "page") {
 		const label = typeof m.label === "string" ? m.label.slice(0, MAX_LABEL) : void 0;
-		return label ? {
-			type: "page",
-			label
-		} : null;
+		const node = m.node === void 0 ? void 0 : nodePath(m.node);
+		if (m.node !== void 0 && !node) return null;
+		if (!label && !node) return null;
+		const out = { type: "page" };
+		if (label) out.label = label;
+		if (node) out.node = node;
+		return out;
 	}
 	if (m.type === "end-page") {
 		const id = str(m.id, 64);
@@ -626,7 +629,95 @@ function cleanAttachments(raw) {
 	}
 	return out.length ? out : void 0;
 }
+/** Most members a presence frame carries (more are dropped). */
+const MAX_PRESENCE = 200;
+/** Longest member id / label / lane / host kept. */
+const MAX_PRESENCE_ID = 64;
+const MAX_PRESENCE_NAME = 80;
+const MAX_PRESENCE_TAG = 40;
+/** Longest avatar URL kept (a data:image URL included). */
+const MAX_AVATAR_URL = 8192;
+/** An avatar URL a box may load: https:, or a raster data:image (no SVG); else undefined. */
+function cleanAvatarUrl(raw) {
+	if (typeof raw !== "string" || !raw || raw.length > MAX_AVATAR_URL) return void 0;
+	if (/^data:image\/(png|jpeg|gif|webp|avif);base64,[A-Za-z0-9+/=]+$/i.test(raw)) return raw;
+	try {
+		const u = new URL(raw);
+		return u.protocol === "https:" ? u.href : void 0;
+	} catch {
+		return;
+	}
+}
+/** One line of text: control and bidi characters removed, trimmed, cut to `max`. */
+const UNSAFE = /[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
+const oneLine = (v, max) => typeof v === "string" ? v.replace(UNSAFE, "").trim().slice(0, max).trim() || void 0 : void 0;
+/** A presence member, checked; null when it has no id. `label` falls back to lane, then id. */
+function cleanMember(raw) {
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+	const m = raw;
+	const id = oneLine(m.id, MAX_PRESENCE_ID);
+	if (!id) return null;
+	const kind = m.kind === "agent" ? "agent" : "user";
+	const lane = oneLine(m.lane, MAX_PRESENCE_TAG);
+	const host = oneLine(m.host, MAX_PRESENCE_TAG);
+	const out = {
+		id,
+		kind,
+		label: oneLine(m.label, MAX_PRESENCE_NAME) ?? lane ?? id
+	};
+	const avatar = cleanAvatarUrl(m.avatar);
+	if (avatar) out.avatar = avatar;
+	if (lane) out.lane = lane;
+	if (host) out.host = host;
+	return out;
+}
+const members = (v) => {
+	if (!Array.isArray(v)) return [];
+	const seen = /* @__PURE__ */ new Set();
+	const out = [];
+	for (const raw of v.slice(0, MAX_PRESENCE)) {
+		const m = cleanMember(raw);
+		if (!m || seen.has(m.id)) continue;
+		seen.add(m.id);
+		out.push(m);
+	}
+	return out;
+};
+/** Validate a hub's presence frame (snapshot or delta); anything else is null. */
+function parsePresence(raw) {
+	const m = typeof raw === "string" ? parse(raw) : raw && typeof raw === "object" ? raw : null;
+	if (!m || m.type !== "presence" && m.type !== "presence-delta") return null;
+	const node = nodePath(m.node);
+	if (!node) return null;
+	const at = typeof m.at === "number" && Number.isFinite(m.at) ? m.at : 0;
+	if (m.type === "presence") return {
+		type: "presence",
+		node,
+		members: members(m.members),
+		at
+	};
+	const out = {
+		type: "presence-delta",
+		node,
+		at
+	};
+	const join = members(m.join);
+	if (join.length) out.join = join;
+	if (Array.isArray(m.leave)) {
+		const leave = m.leave.slice(0, MAX_PRESENCE).map((x) => oneLine(x, MAX_PRESENCE_ID)).filter((x) => !!x);
+		if (leave.length) out.leave = leave;
+	}
+	return out;
+}
+/** An agent label's lane and host, from "lane@host" at its start ("[syform]@symubu …" too). */
+function laneHostOf(label) {
+	const m = /^\[?([A-Za-z0-9._-]{1,40})\]?@([A-Za-z0-9._-]{1,40})(?:\s|$)/.exec((label ?? "").trim());
+	return m ? {
+		lane: m[1],
+		host: m[2]
+	} : {};
+}
 
 //#endregion
-export { APPROVAL_MS, BUSY_AFTER_REPLY_MS, BUSY_MS, CHAT_HISTORY, CHAT_MS, EVAL_GRANT_MS, MAX_AGENT_ID, MAX_ATTACHMENTS, MAX_ATTACHMENT_NAME, MAX_CHAT, MAX_CODE, MAX_CONTEXT_FILES, MAX_CONTEXT_PATH, MAX_CONTEXT_TITLE, MAX_CTX, MAX_EDITS, MAX_FILE_NAME, MAX_FILE_TYPE, MAX_FILE_URL, MAX_LABEL, MAX_NODE_PATH, MAX_RESULT, MAX_SELECTION, PAGES_GONE_MS, PAGE_DEBOUNCE_MS, PENDING_MS, ROOT_NODE, agentIdOf, applyEdit, chatText, cleanAttachments, cleanContext, cleanCtx, cleanFileName, cleanLabel, commonAncestor, compile, completeNode, dictatedDraft, draftSource, isPageId, isWithin, lineNode, matchesTarget, mayAddress, mergeContext, nodeHue, nodePath, parseAddress, parseControllerMessage, parsePageMessage, pathLabel, pickLang, pickVoice, routeTo, shortCode, summarize, trimHistory };
+export { APPROVAL_MS, BUSY_AFTER_REPLY_MS, BUSY_MS, CHAT_HISTORY, CHAT_MS, EVAL_GRANT_MS, MAX_AGENT_ID, MAX_ATTACHMENTS, MAX_ATTACHMENT_NAME, MAX_AVATAR_URL, MAX_CHAT, MAX_CODE, MAX_CONTEXT_FILES, MAX_CONTEXT_PATH, MAX_CONTEXT_TITLE, MAX_CTX, MAX_EDITS, MAX_FILE_NAME, MAX_FILE_TYPE, MAX_FILE_URL, MAX_LABEL, MAX_NODE_PATH, MAX_PRESENCE, MAX_PRESENCE_ID, MAX_PRESENCE_NAME, MAX_PRESENCE_TAG, MAX_RESULT, MAX_SELECTION, PAGES_GONE_MS, PAGE_DEBOUNCE_MS, PENDING_MS, ROOT_NODE, agentIdOf, applyEdit, chatText, cleanAttachments, cleanAvatarUrl, cleanContext, cleanCtx, cleanFileName, cleanLabel, cleanMember, commonAncestor, compile, completeNode, dictatedDraft, draftSource, isPageId, isWithin, laneHostOf, lineNode, matchesTarget, mayAddress, mergeContext, nodeHue, nodePath, parseAddress, parseControllerMessage, parsePageMessage, parsePresence, pathLabel, pickLang, pickVoice, routeTo, shortCode, summarize, trimHistory };
 //# sourceMappingURL=protocol.js.map

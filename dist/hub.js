@@ -1,4 +1,4 @@
-import { APPROVAL_MS, CHAT_HISTORY, CHAT_MS, EVAL_GRANT_MS, MAX_EDITS, MAX_LABEL, PAGES_GONE_MS, PENDING_MS, ROOT_NODE, agentIdOf, cleanLabel, isPageId, isWithin, matchesTarget, mayAddress, nodePath, parseControllerMessage, parsePageMessage, routeTo, shortCode } from "./protocol.js";
+import { APPROVAL_MS, CHAT_HISTORY, CHAT_MS, EVAL_GRANT_MS, MAX_EDITS, MAX_LABEL, PAGES_GONE_MS, PENDING_MS, ROOT_NODE, agentIdOf, cleanLabel, cleanMember, isPageId, isWithin, laneHostOf, matchesTarget, mayAddress, nodePath, parseControllerMessage, parsePageMessage, routeTo, shortCode } from "./protocol.js";
 import { t as OWNER_NAME } from "./state-tree-U_1Vg6uJ.js";
 import { C as parseTtl, E as progressKey, M as verifyProgressToken, S as parseProgressReport, T as progressEvent, _ as isPathId, a as PROGRESS_DONE_TTL_MS, c as PROGRESS_LOG_MAX, g as isOwnerTodo, i as PROGRESS_AUTO, j as mintProgressToken, l as PROGRESS_MAX_ENTRIES, p as autoNode, s as PROGRESS_LIMITS, v as isProgressId, w as pathParent, y as mergeProgress } from "./progress-fNDUTEZJ.js";
 
@@ -710,6 +710,85 @@ var ChatHub = class {
 				self: a.id
 			});
 		}
+		this.sendPresence(except);
+	}
+	/** What each page was last told (its node, and each member as JSON), so only changes go out. */
+	sentPresence = /* @__PURE__ */ new WeakMap();
+	/**
+	* Who a page is in the presence list: `label` (a display name) and an
+	* optional `avatar` (https: or data:image; others are dropped). Override
+	* it to resolve the user from your own session; null leaves the page out.
+	* Default: the friend's email, else "you" on the owner's pages.
+	*/
+	presenceUser(_ws, page) {
+		return { label: page.email || (page.thread === OWNER_THREAD ? "you" : "friend") };
+	}
+	/**
+	* Presence, per thread and node: a page sees the pages of its own thread
+	* on its node (kind "user", the page itself included; the box leaves
+	* itself out) and the agents that get that node's lines in its thread
+	* (owner: the listeners at the node or an ancestor; a friend: agents
+	* paired for them). First a snapshot {type:"presence"} (on join and node
+	* change), then {type:"presence-delta"} with what joined or left.
+	*/
+	sendPresence(except) {
+		const all = this.sockets("page", except);
+		const t = this.now();
+		const ctl = this.sockets("controller", except).filter((c) => c.a.until && c.a.until > t);
+		for (const { ws, a } of all) {
+			const node = a.node ?? ROOT_NODE;
+			const members = /* @__PURE__ */ new Map();
+			for (const p of all) {
+				if (p.a.thread !== a.thread || (p.a.node ?? ROOT_NODE) !== node) continue;
+				const u = this.presenceUser(p.ws, p.a);
+				if (!u) continue;
+				const m = cleanMember({
+					id: p.a.id,
+					kind: "user",
+					label: u.label,
+					avatar: u.avatar
+				});
+				if (m) members.set(m.id, m);
+			}
+			for (const c of ctl) {
+				if ((c.a.forUser ?? OWNER_THREAD) !== a.thread) continue;
+				if (!routeTo(c.a.node, node === ROOT_NODE ? void 0 : node)) continue;
+				const { lane, host } = laneHostOf(c.a.label);
+				const m = cleanMember({
+					id: c.a.pair,
+					kind: "agent",
+					label: lane && host ? `${lane}@${host}` : c.a.assignee || c.a.label || "agent",
+					lane,
+					host
+				});
+				if (m) members.set(m.id, m);
+			}
+			const now = new Map([...members].map(([id, m]) => [id, JSON.stringify(m)]));
+			const last = this.sentPresence.get(ws);
+			this.sentPresence.set(ws, {
+				node,
+				members: now
+			});
+			if (!last || last.node !== node) {
+				send(ws, {
+					type: "presence",
+					node,
+					members: [...members.values()],
+					at: t
+				});
+				continue;
+			}
+			const join = [...members.values()].filter((m) => last.members.get(m.id) !== now.get(m.id));
+			const leave = [...last.members.keys()].filter((id) => !now.has(id));
+			if (!join.length && !leave.length) continue;
+			send(ws, {
+				type: "presence-delta",
+				node,
+				...join.length ? { join } : {},
+				...leave.length ? { leave } : {},
+				at: t
+			});
+		}
 	}
 	controller(pair) {
 		return this.sockets("controller").find((c) => c.a.pair === pair);
@@ -942,6 +1021,8 @@ var ChatHub = class {
 	async connectPage(ws, url, who) {
 		const label = cleanLabel(url.searchParams.get("label"), MAX_LABEL);
 		const asked = url.searchParams.get("page");
+		const at = nodePath(url.searchParams.get("node") ?? void 0);
+		const node = at && at !== ROOT_NODE ? { node: at } : {};
 		const id = isPageId(asked) && !this.sockets("page", ws).some((p) => p.a.id === asked) ? asked : pageId();
 		if (who && !who.owner) {
 			if (!isUserId(who.userId)) return close(ws, 4403, "no identity");
@@ -965,7 +1046,8 @@ var ChatHub = class {
 				label,
 				at: this.now(),
 				thread: who.userId,
-				email: cleanLabel(who.email, 320)
+				email: cleanLabel(who.email, 320),
+				...node
 			});
 			send(ws, {
 				type: "friend-status",
@@ -976,7 +1058,8 @@ var ChatHub = class {
 			id,
 			label,
 			at: this.now(),
-			thread: OWNER_THREAD
+			thread: OWNER_THREAD,
+			...node
 		});
 		const a = att(ws);
 		if (a.thread === OWNER_THREAD && !this.grants) this.loadGrants().then(() => this.grants?.size && this.broadcast());
@@ -1253,7 +1336,21 @@ var ChatHub = class {
 				...m.ctx ? { ctx: m.ctx } : {}
 			});
 		}
-		if (m.type === "page") return this.relabel(ws, page, m.label);
+		if (m.type === "page") {
+			if (m.node !== void 0) {
+				const node = m.node === ROOT_NODE ? void 0 : m.node;
+				if (node !== page.node) {
+					const { node: _old, ...rest } = page;
+					page = node ? {
+						...rest,
+						node
+					} : rest;
+					ws.serializeAttachment(page);
+					if (!m.label) return this.sendPresence();
+				}
+			}
+			return m.label ? this.relabel(ws, page, m.label) : void 0;
+		}
 		if (m.type === "end-page") {
 			const target = this.pages(page.thread).find((p) => p.a.id === m.id);
 			if (!target) return send(ws, this.state(page.thread, void 0, page.id));

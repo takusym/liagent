@@ -1,0 +1,4272 @@
+import { BUSY_AFTER_REPLY_MS, BUSY_MS, MAX_ATTACHMENTS, MAX_CHAT, ROOT_NODE, applyEdit, cleanAvatarUrl, cleanCtx, cleanFileName, completeNode, dictatedDraft, draftSource, lineNode, mergeContext, nodePath, parseAddress, pathLabel, pickLang, trimHistory } from "./protocol.js";
+import { A as LONG_PRESS_MS, At as oneLine, Ct as actionEnabled, D as createTapper, E as createLongPress, F as shortId, H as FADE_MS, I as shownAgentId, J as createArrivals, N as countBadge, P as frontierView, Q as minimizeFloat, T as createDragFlag, U as FLOAT_MAX, X as createFloatLife, Z as dwellMs, _t as atEndAfter, dt as isVisible, f as treeDefaults, ft as maxDetent, g as createSwipeHandoff, i as silenceFor, k as FRONTIER_ROWS, kt as menuGroups, lt as indexTree, ot as dragCells, p as uiStrings, pt as treeNav, q as countUnread, r as pageHidden, st as dragOffset, t as RETIRED_SETTINGS, ut as initialNav, v as splitScroll, vt as repinEnd, w as createAxisLock, wt as actionsAt, y as wheelPixels, z as placeBox } from "./speak-rules-VvlfAmBb.js";
+import { o as aecOn, s as applyAec } from "./aec-Dn6DDsp2.js";
+import { r as countOpen, s as frontier } from "./state-tree-U_1Vg6uJ.js";
+import { c as watchTree, r as TREE_STRINGS_EN } from "./tree-B01r_N1f.js";
+import { a as speechRate, i as setSpeechRate, n as SPEECH_RATES } from "./speech-rate-Cit9d15-.js";
+import { a as watchVoices, i as readingLang, n as createVoicePicker } from "./voice-pick-Biric059.js";
+
+//#region src/presence.ts
+/** Avatars stacked in the strip at rest. */
+const PRESENCE_STACK = 3;
+/** Members the hover/focus preview lists. */
+const PRESENCE_PREVIEW = 8;
+const emptyPresence = (node) => ({
+	node,
+	members: []
+});
+/**
+* Apply a frame. A snapshot replaces the list; a delta adds `join` (a known
+* id is updated in place) and drops `leave`. A frame for another node than
+* `state.node` is ignored (the box moved on).
+*/
+function applyPresence(state, frame) {
+	if (frame.node !== state.node) return state;
+	if (frame.type === "presence") return {
+		node: state.node,
+		members: [...frame.members]
+	};
+	const gone = new Set(frame.leave ?? []);
+	const list = state.members.filter((m) => !gone.has(m.id));
+	for (const j of frame.join ?? []) {
+		const i = list.findIndex((m) => m.id === j.id);
+		if (i >= 0) list[i] = j;
+		else list.push(j);
+	}
+	return {
+		node: state.node,
+		members: list
+	};
+}
+/** "[lane@host]" for an agent with a lane, else "". */
+function laneTag(m) {
+	if (m.kind !== "agent" || !m.lane) return "";
+	return `[${m.host ? `${m.lane}@${m.host}` : m.lane}]`;
+}
+/** How a member reads in lists and labels: "label [lane@host]". */
+const memberLabel = (m) => {
+	const tag = laneTag(m);
+	if (!tag) return m.label;
+	const bare = tag.slice(1, -1);
+	return m.label === bare || m.label === m.lane ? tag : `${m.label} ${tag}`;
+};
+/** A badge's text when there is no picture: an agent's lane (first 2 chars), else the name's. */
+function badgeText(m) {
+	const s = (m.kind === "agent" && m.lane ? m.lane : m.label).trim();
+	const chars = Array.from(s);
+	return (m.kind === "agent" ? chars.slice(0, 2).join("") : chars[0] ?? "?").toUpperCase() || "?";
+}
+/** What the strip shows, leaving out `self` (this page's own id or ids). */
+function presenceView(members, self = []) {
+	const me = new Set(typeof self === "string" ? [self] : self);
+	const all = members.filter((m) => !me.has(m.id));
+	const stack = all.slice(0, PRESENCE_STACK);
+	return {
+		hidden: all.length === 0,
+		stack,
+		more: all.length > PRESENCE_STACK ? all.length - PRESENCE_STACK : 0,
+		preview: all.slice(0, PRESENCE_PREVIEW),
+		all
+	};
+}
+/** The strip's aria-label: who is here. */
+function presenceAria(all, prefix) {
+	return `${prefix}: ${all.map(memberLabel).join(", ")}`;
+}
+
+//#endregion
+//#region src/before-send.ts
+function beforeSendEvent(d) {
+	return new CustomEvent("beforesend", {
+		cancelable: true,
+		detail: {
+			...d,
+			extra: {}
+		}
+	});
+}
+
+//#endregion
+//#region src/ctx-chip.ts
+const CTX_ICON = "📎";
+const MAX_ICON = 4;
+const MAX_TITLE = 80;
+const MAX_DETAIL = 2e3;
+const MAX_VALUE = 120;
+const TITLE_KEYS = [
+	"title",
+	"table",
+	"row",
+	"page",
+	"selection"
+];
+const clip = (s, n) => {
+	const cps = [...s];
+	return cps.length > n ? `${cps.slice(0, n - 1).join("")}…` : s;
+};
+const flat = (s) => s.replace(/\s+/g, " ").trim();
+function show(v) {
+	if (v === null || v === void 0) return "";
+	if (typeof v === "string") return v;
+	if (typeof v === "number" || typeof v === "boolean") return String(v);
+	try {
+		return JSON.stringify(v) ?? "";
+	} catch {
+		return "";
+	}
+}
+/** The default view: a title from record.company, else record.row, else title/table/row/page/selection; a detail as "key: value" lines. */
+function defaultCtxView(ctx) {
+	const parts = [];
+	const rec = ctx.record && typeof ctx.record === "object" ? ctx.record : null;
+	const named = rec && (flat(show(rec.company)) || flat(show(rec.row)));
+	if (named) parts.push(named);
+	else for (const k of TITLE_KEYS) {
+		const v = flat(show(ctx[k]));
+		if (!v) continue;
+		parts.push(k === "row" ? `#${v}` : v);
+		if (k === "title") break;
+	}
+	const keys = Object.keys(ctx);
+	const title = clip(parts.join(" · ") || keys.slice(0, 3).join(", ") || "ctx", MAX_TITLE);
+	const detail = keys.map((k) => `${k}: ${clip(flat(show(ctx[k])), MAX_VALUE)}`).join("\n");
+	return {
+		icon: CTX_ICON,
+		title,
+		...detail ? { detail: clip(detail, MAX_DETAIL) } : {}
+	};
+}
+/** Coerce a host view to strings within limits; null when it is not a usable view. */
+function cleanCtxView(v) {
+	if (!v || typeof v !== "object") return null;
+	const o = v;
+	if (typeof o.title !== "string" || !flat(o.title)) return null;
+	const out = { title: clip(flat(o.title), MAX_TITLE) };
+	if (typeof o.icon === "string" && flat(o.icon)) out.icon = clip(flat(o.icon), MAX_ICON);
+	if (typeof o.detail === "string" && o.detail.trim()) out.detail = clip(o.detail, MAX_DETAIL);
+	return out;
+}
+/** The chip's view for a ctx: the host's renderer when it returns one, else the default. */
+function ctxViewFor(renderer, ctx, line) {
+	if (renderer) try {
+		const v = cleanCtxView(renderer(ctx, line));
+		if (v) return {
+			icon: CTX_ICON,
+			...v
+		};
+	} catch {}
+	return defaultCtxView(ctx);
+}
+const LEGACY = /^\s*(?:>\s*)?\[ctx\]\s(.*)$/;
+/**
+* Legacy "[ctx] {json}" lines anywhere in a message (also quoted "> [ctx] …"),
+* as [syform] writes them: each such line is taken out of the text and
+* becomes one chip (several lines = several chips, in order). null when there is none.
+*/
+function parseLegacyCtx(text) {
+	const ctxs = [];
+	const kept = [];
+	for (const line of text.split("\n")) {
+		const m = LEGACY.exec(line);
+		if (!m) {
+			kept.push(line);
+			continue;
+		}
+		const rest = (m[1] ?? "").trim();
+		let obj;
+		try {
+			obj = cleanCtx(JSON.parse(rest));
+		} catch {
+			obj = void 0;
+		}
+		ctxs.push(obj ? { ctx: obj } : { raw: rest });
+	}
+	if (!ctxs.length) return null;
+	return {
+		ctxs,
+		text: kept.join("\n").replace(/^\s*\n|\n\s*$/g, "").trim()
+	};
+}
+/** The view for a legacy "[ctx]" line that is not a JSON object: its raw text as the title. */
+function legacyCtxView(raw) {
+	const s = flat(raw);
+	return {
+		icon: CTX_ICON,
+		title: clip(s || "ctx", MAX_TITLE),
+		...s ? { detail: raw } : {}
+	};
+}
+/**
+* The chip (a button, part="ctx") and, when open, its panel (part="ctx-detail").
+* Text only. `onToggle` flips the open state (the box keeps it per line).
+*/
+function ctxChipEls(doc, view, open, id, onToggle) {
+	const chip = doc.createElement("button");
+	chip.type = "button";
+	chip.className = "ctx";
+	chip.setAttribute("part", "ctx");
+	chip.setAttribute("aria-expanded", String(open));
+	chip.setAttribute("aria-label", `ctx: ${view.title}`);
+	chip.title = view.title;
+	const pid = `ctx-${id.replace(/[^\w-]/g, "_")}`;
+	if (open) chip.setAttribute("aria-controls", pid);
+	const icon = doc.createElement("span");
+	icon.className = "ctx-icon";
+	icon.setAttribute("aria-hidden", "true");
+	icon.textContent = view.icon ?? CTX_ICON;
+	chip.append(icon);
+	chip.addEventListener("click", (ev) => {
+		ev.stopPropagation();
+		onToggle();
+	});
+	if (!open) return [chip];
+	const panel = doc.createElement("div");
+	panel.className = "ctx-detail";
+	panel.setAttribute("part", "ctx-detail");
+	panel.id = pid;
+	const t = doc.createElement("div");
+	t.className = "ctx-title";
+	t.textContent = view.title;
+	panel.append(t);
+	if (view.detail) {
+		const d = doc.createElement("div");
+		d.className = "ctx-body";
+		d.textContent = view.detail;
+		panel.append(d);
+	}
+	return [chip, panel];
+}
+
+//#endregion
+//#region src/files.ts
+/**
+* Files sent with a chat line: pasted into the input, dropped on the box, or
+* picked with an upload action in the + menu (attach.ts fileAction /
+* mediaAction without their own `upload`). The box never stores bytes and
+* knows no server: the host sets `box.files` (ChatFiles), which uploads one
+* file, says where the page may fetch one, and optionally lists and deletes
+* what was stored and offers its own actions on one. Without it, paste and
+* drop do nothing and the upload actions show disabled.
+*
+* Here: the host contract, the pending list above the input (one entry per
+* file with its progress, removable before sending), small pure helpers, and
+* memoryFiles(), an in-memory host for demos and tests. Nothing a user sent
+* is rendered as HTML: names are text, and only an image type in
+* INLINE_IMAGE is shown as an <img>, from the host's own URL.
+*
+* Pure apart from what it is handed, so it is unit tested with fakes
+* (test/files.test.ts).
+*/
+/** Image types shown inline as <img>; anything else (SVG included) is a file chip. */
+const INLINE_IMAGE = /^image\/(png|jpeg|gif|webp|avif)$/;
+const isInlineImage = (type) => INLINE_IMAGE.test(type);
+/** "12 KB", "3.4 MB": bytes for a chip ("" for nonsense). */
+function formatSize(n) {
+	if (!Number.isFinite(n) || n < 0) return "";
+	if (n < 1024) return `${n} B`;
+	const units = [
+		"KB",
+		"MB",
+		"GB",
+		"TB"
+	];
+	let v = n / 1024;
+	let i = 0;
+	while (v >= 1024 && i < units.length - 1) {
+		v /= 1024;
+		i++;
+	}
+	return `${v >= 10 ? Math.round(v) : Math.round(v * 10) / 10} ${units[i]}`;
+}
+/** "PDF", "ZIP": a file chip's stand-in for a thumbnail ("FILE" without an extension). */
+function fileBadge(name) {
+	const m = /\.([A-Za-z0-9]{1,5})$/.exec(name);
+	return m ? m[1].toUpperCase() : "FILE";
+}
+/** The files in a paste or a drop (items first: a pasted screenshot is only there). */
+function filesFrom(dt) {
+	if (!dt) return [];
+	const out = [];
+	for (const it of Array.from(dt.items ?? [])) {
+		if (it.kind !== "file") continue;
+		const f = it.getAsFile();
+		if (f) out.push(f);
+	}
+	if (!out.length) out.push(...Array.from(dt.files ?? []));
+	return out;
+}
+/** Whether a drag carries files (dragover cannot read them yet, only the types). */
+function dragHasFiles(dt) {
+	return Array.from(dt?.types ?? []).includes("Files");
+}
+/**
+* The pending files above the input, as a small store (subscribe/get, like
+* the page selection): add() starts each upload, remove() aborts or drops
+* one, take() hands the stored refs to a sent line and clears the list.
+*/
+function createPendingFiles(deps) {
+	let list = [];
+	const aborts = /* @__PURE__ */ new Map();
+	const subs = /* @__PURE__ */ new Set();
+	let n = 0;
+	const set = (next) => {
+		list = next;
+		for (const f of subs) f();
+	};
+	const patch = (key, p) => {
+		if (list.some((x) => x.key === key)) set(list.map((x) => x.key === key ? {
+			...x,
+			...p
+		} : x));
+	};
+	const drop = (x) => {
+		aborts.get(x.key)?.abort();
+		aborts.delete(x.key);
+		if (x.thumb) deps.objectUrl?.revoke(x.thumb);
+	};
+	return {
+		subscribe(f) {
+			subs.add(f);
+			return () => void subs.delete(f);
+		},
+		get: () => list,
+		add(files) {
+			const host = deps.files();
+			if (!host) return;
+			const room = Math.max(0, MAX_ATTACHMENTS - list.length);
+			const added = [];
+			const starts = [];
+			for (const file of files.slice(0, room)) {
+				const key = `f${++n}`;
+				const type = file.type || "application/octet-stream";
+				const big = host.maxBytes !== void 0 && file.size > host.maxBytes;
+				const p = {
+					key,
+					name: cleanFileName(file.name),
+					type,
+					size: file.size,
+					sent: 0,
+					state: big ? "too-big" : "uploading",
+					...isInlineImage(type) && deps.objectUrl ? { thumb: deps.objectUrl.create(file) } : {}
+				};
+				added.push(p);
+				if (big) continue;
+				const ac = new AbortController();
+				aborts.set(key, ac);
+				starts.push(() => {
+					let run;
+					try {
+						run = Promise.resolve(host.upload(file, (sent) => patch(key, { sent }), ac.signal));
+					} catch (e) {
+						run = Promise.reject(e);
+					}
+					run.then((ref) => {
+						if (aborts.get(key) !== ac) return;
+						patch(key, {
+							state: "done",
+							sent: file.size,
+							ref
+						});
+					}, () => {
+						if (aborts.get(key) !== ac) return;
+						patch(key, { state: "failed" });
+					}).finally(() => {
+						if (aborts.get(key) === ac) aborts.delete(key);
+					});
+				});
+			}
+			if (added.length) set([...list, ...added]);
+			for (const go of starts) go();
+		},
+		remove(key) {
+			const x = list.find((p) => p.key === key);
+			if (!x) return;
+			drop(x);
+			set(list.filter((p) => p.key !== key));
+		},
+		busy: () => list.some((p) => p.state === "uploading"),
+		ready: () => list.some((p) => p.state === "done" && !!p.ref),
+		take() {
+			const refs = list.flatMap((p) => p.state === "done" && p.ref ? [p.ref] : []);
+			for (const x of list) drop(x);
+			if (list.length) set([]);
+			return refs;
+		}
+	};
+}
+/**
+* A ChatFiles that keeps every file in this page's memory (object URLs), for
+* demos and tests only: nothing leaves the page and everything is gone on
+* reload. A real host uploads to its own store, checks the file's type and
+* size again on its side, and serves it back from a URL of its own.
+*/
+function memoryFiles(o = {}) {
+	const now = o.now ?? Date.now;
+	const mkUrl = o.objectUrl ?? ((f) => URL.createObjectURL(f));
+	const items = [];
+	let n = 0;
+	const plain = ({ href: _href, ...f }) => f;
+	return {
+		maxBytes: o.maxBytes,
+		async upload(file, onProgress, signal) {
+			if (signal.aborted) throw new Error("aborted");
+			if (o.maxBytes !== void 0 && file.size > o.maxBytes) throw new Error("too large");
+			onProgress(file.size, file.size);
+			const ref = {
+				id: `m${now().toString(36)}${(++n).toString(36)}`,
+				name: cleanFileName(file.name),
+				type: file.type || "application/octet-stream",
+				size: file.size
+			};
+			items.unshift({
+				...ref,
+				at: now(),
+				href: mkUrl(file)
+			});
+			return ref;
+		},
+		url: (ref) => items.find((x) => x.id === ref.id)?.href ?? "",
+		async list() {
+			const bytes = items.reduce((s, x) => s + x.size, 0);
+			return {
+				items: items.map(plain),
+				usage: {
+					bytes,
+					items: items.length,
+					...o.quota ? { quota: o.quota } : {}
+				}
+			};
+		},
+		async remove(id) {
+			const i = items.findIndex((x) => x.id === id);
+			if (i < 0) throw new Error("no such file");
+			items.splice(i, 1);
+		},
+		actions: o.actions,
+		stored: () => items.map(plain)
+	};
+}
+
+//#endregion
+//#region src/linkify.ts
+const URL_RE = /\bhttps?:\/\/[^\s　<>"、。（）「」『』【】〔〕]+/gi;
+const TRAIL = /[.,;:!?'"\]}）]$/;
+const OPEN = {
+	")": "(",
+	"]": "[",
+	"}": "{"
+};
+function count(s, c) {
+	return s.split(c).length - 1;
+}
+/** Drop trailing punctuation; a closing bracket stays when it balances one inside. */
+function trimUrl(raw) {
+	let s = raw;
+	for (;;) {
+		const last = s.at(-1);
+		if (!last) return s;
+		const open = OPEN[last];
+		if (open) {
+			if (count(s, open) >= count(s, last)) return s;
+			s = s.slice(0, -1);
+			continue;
+		}
+		if (TRAIL.test(last)) {
+			s = s.slice(0, -1);
+			continue;
+		}
+		return s;
+	}
+}
+/** Split text into plain and link parts. Only http(s) URLs that parse are links. */
+function linkParts(text) {
+	const out = [];
+	let at = 0;
+	for (const m of text.matchAll(URL_RE)) {
+		const start = m.index;
+		const url = trimUrl(m[0]);
+		if (!/^https?:\/\/[^/?#]/i.test(url)) continue;
+		try {
+			new URL(url);
+		} catch {
+			continue;
+		}
+		if (start > at) out.push({ text: text.slice(at, start) });
+		out.push({
+			text: url,
+			url
+		});
+		at = start + url.length;
+	}
+	if (at < text.length) out.push({ text: text.slice(at) });
+	return out;
+}
+/** True when `url` has the page's origin. */
+function sameOrigin(url, origin) {
+	if (!origin) return false;
+	try {
+		return new URL(url).origin === origin;
+	} catch {
+		return false;
+	}
+}
+/** DOM nodes for `text` with its URLs linked. */
+function linkify(text, doc = document, origin = doc.defaultView?.location?.origin) {
+	return linkParts(text).map((p) => {
+		if (!("url" in p)) return doc.createTextNode(p.text);
+		const a = doc.createElement("a");
+		a.href = p.url;
+		a.textContent = p.text;
+		if (!sameOrigin(p.url, origin)) {
+			a.target = "_blank";
+			a.rel = "noopener noreferrer";
+		}
+		return a;
+	});
+}
+
+//#endregion
+//#region src/input.ts
+/** Typing pauses this long before the draft is sent. */
+const DEBOUNCE_MS = 3e3;
+/** A burst this long or longer (dictation) that ends a sentence sends at once. */
+const BURST_CHARS = 10;
+const ENDS_SENTENCE = /[。．.!?！？]$/;
+/** An Enter keydown that sends: not Shift+Enter, not inside or confirming an IME composition. */
+function enterSends(e, composing) {
+	if (e.key !== "Enter" || e.shiftKey) return false;
+	return !(e.isComposing || composing || e.keyCode === 229);
+}
+/** A beforeinput line break that sends (Android): not Shift+Enter, not composing. */
+function lineBreakSends(inputType, opts) {
+	if (inputType !== "insertLineBreak" && inputType !== "insertParagraph") return false;
+	return !(opts.composing || opts.isComposing || opts.shiftEnter);
+}
+/**
+* What the draft change does once the box's holds apply: a mic that is on, a
+* live partial, or an explicit hold stop both the jump-send and the debounce.
+*/
+function autoSend(next, held) {
+	return held.mic || held.partial || held.hold ? "idle" : next;
+}
+/**
+* After the draft changed outside a composition: "send" now (a dictated
+* sentence), "arm" the debounce, or "idle" (nothing to send). `settledLen` is
+* the draft's length at the previous settled change.
+*/
+function afterChange(text, settledLen, composing) {
+	if (composing) return "idle";
+	if (text.length - settledLen > BURST_CHARS && ENDS_SENTENCE.test(text.trim())) return "send";
+	return text.trim() ? "arm" : "idle";
+}
+const CJK_START = /^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}　-〿＀-￯]/u;
+const CJK_END = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}　-〿＀-￯]$/u;
+/**
+* What a live (not yet final) transcript adds after the draft, as shown
+* dimmed in the input: a space between two words, none after a space or a
+* line break, or next to CJK text. Empty for no partial.
+*/
+function partialTail(draft, partial) {
+	const p = (partial ?? "").trim();
+	if (!p) return "";
+	if (!draft || /\s$/.test(draft) || CJK_END.test(draft) || CJK_START.test(p)) return p;
+	return ` ${p}`;
+}
+
+//#endregion
+//#region src/avatar.ts
+/** A short, stable hash (FNV-1a, 32 bits, base 36). */
+function hashId(s) {
+	let h = 2166136261;
+	for (let i = 0; i < s.length; i++) {
+		h ^= s.charCodeAt(i);
+		h = Math.imul(h, 16777619);
+	}
+	return (h >>> 0).toString(36);
+}
+/** The URLs in an AvatarSrc, in order, empty ones dropped. */
+function avatarSrcs(src) {
+	if (typeof src === "string") return src ? [src] : [];
+	if (Array.isArray(src)) return src.filter((u) => typeof u === "string" && !!u);
+	return [];
+}
+/** The fallback's letter: the name's first grapheme, upper-cased; "?" for none. */
+function initialOf(name) {
+	const s = (name ?? "").trim();
+	if (!s) return "?";
+	const Seg = Intl.Segmenter;
+	return ((Seg ? new Seg(void 0, { granularity: "grapheme" }).segment(s)[Symbol.iterator]().next().value?.segment ?? s[0] : Array.from(s)[0] ?? s) ?? s).toLocaleUpperCase();
+}
+/** Relative luminance (WCAG) of an oklch colour, clamped into sRGB. */
+function oklchLuminance(l, c, hDeg) {
+	const h = hDeg * Math.PI / 180;
+	const a = c * Math.cos(h);
+	const b = c * Math.sin(h);
+	const l_ = (l + .3963377774 * a + .2158037573 * b) ** 3;
+	const m_ = (l - .1055613458 * a - .0638541728 * b) ** 3;
+	const s_ = (l - .0894841775 * a - 1.291485548 * b) ** 3;
+	const clamp = (v) => Math.min(1, Math.max(0, v));
+	const r = clamp(4.0767416621 * l_ - 3.3077115913 * m_ + .2309699292 * s_);
+	const g = clamp(-1.2684380046 * l_ + 2.6097574011 * m_ - .3413193965 * s_);
+	const bl = clamp(-.0041960863 * l_ - .7034186147 * m_ + 1.707614701 * s_);
+	return .2126 * r + .7152 * g + .0722 * bl;
+}
+/** WCAG contrast ratio of two relative luminances. */
+const contrastRatio = (y1, y2) => (Math.max(y1, y2) + .05) / (Math.min(y1, y2) + .05);
+const AVATAR_L = .7;
+const AVATAR_C = .12;
+const INK$1 = [{
+	css: "oklch(0.2 0 0)",
+	y: oklchLuminance(.2, 0, 0)
+}, {
+	css: "oklch(1 0 0)",
+	y: 1
+}];
+/**
+* The fallback's colours for a seed: oklch(0.7 0.12 <hue>), the hue from a
+* hash so a person keeps one colour, the letter in whichever ink contrasts
+* more (at least 4.5:1 on every hue).
+*/
+function avatarColors(seed) {
+	const hue = parseInt(hashId(`avatar:${seed}`), 36) % 360;
+	const y = oklchLuminance(AVATAR_L, AVATAR_C, hue);
+	const ink = INK$1.reduce((best, i) => contrastRatio(i.y, y) > contrastRatio(best.y, y) ? i : best);
+	return {
+		bg: `oklch(${AVATAR_L} ${AVATAR_C} ${hue})`,
+		fg: ink.css,
+		hue
+	};
+}
+/**
+* A line's avatar. The agent's is `agentAvatar` (the host app's logo, a URL
+* or an element) named by its label. Anyone else's comes from `avatarFor`
+* (the host's resolver), else the line's own `sender`; the viewer's own
+* lines (owner lines on the owner's page, friend lines on a friend's) fill
+* the gaps from `user` and are named "you".
+*/
+function lineAvatar(m, opts) {
+	if (m.from === "agent") {
+		const name = m.agentId || m.label || "agent";
+		const a = opts.agentAvatar;
+		const isSrc = typeof a === "string" || Array.isArray(a);
+		return {
+			srcs: isSrc ? avatarSrcs(a) : [],
+			...a && !isSrc ? { node: a } : {},
+			name,
+			initialFrom: name,
+			seed: `agent:${name}`,
+			mine: false
+		};
+	}
+	const mine = m.from === (opts.friend ? "friend" : "owner");
+	const own = opts.avatarFor?.(m) ?? void 0;
+	const s = {
+		...mine ? opts.user : void 0,
+		...m.sender,
+		...own
+	};
+	const srcs = [
+		...avatarSrcs(own?.avatar),
+		...mine ? avatarSrcs(opts.user?.avatar) : [],
+		...avatarSrcs(m.sender?.avatar)
+	];
+	const name = s.name || (m.from === "friend" ? "friend" : "owner");
+	return {
+		srcs: [...new Set(srcs)],
+		name: mine ? "you" : name,
+		initialFrom: name,
+		seed: s.id || m.thread || m.from,
+		mine
+	};
+}
+
+//#endregion
+//#region src/channel-tag.ts
+/** True if `c` is a CSS colour (CSS.supports where there is one). */
+function isCssColor(c) {
+	if (typeof c !== "string" || !c.trim()) return false;
+	const css = globalThis.CSS;
+	if (css?.supports) return css.supports("color", c);
+	return !/[;{}<>]/.test(c);
+}
+/** The line's channel, or null when unset, null, or malformed (a host error never breaks the log). */
+function channelFor(channelOf, m) {
+	if (!channelOf) return null;
+	let ch;
+	try {
+		ch = channelOf(m);
+	} catch {
+		return null;
+	}
+	if (!ch || typeof ch.label !== "string") return null;
+	return ch;
+}
+/**
+* The lines to show: all of them without a filter, else those whose channel
+* label equals it plus the world lines (`world: true`).
+*/
+function filterByChannel(msgs, channelOf, filter) {
+	if (filter == null) return [...msgs];
+	return msgs.filter((m) => {
+		const ch = channelFor(channelOf, m);
+		return !!ch && (ch.label === filter || ch.world === true);
+	});
+}
+/** The 【label】 tag element: text only, the colour as --channel. */
+function channelTagEl(doc, ch) {
+	const el = doc.createElement("span");
+	el.className = "channel";
+	el.textContent = `【${ch.label}】`;
+	if (isCssColor(ch.color)) el.style.setProperty("--channel", ch.color);
+	return el;
+}
+
+//#endregion
+//#region src/tree-chips.ts
+/**
+* The state tree as the chat box shows it, driven by treeNav (tree-nav.ts):
+* the top-level nodes as a row of chips (status glyph, title, 〔open count〕;
+* the row scrolls sideways), and the one open branch below it as lines, each
+* level indented, as deep as its detents opened it. Box-less, like the log:
+* text with the halo, an underline on the focused one. Tapping a chip or a
+* line focuses it and opens it a level. Plain DOM, text only.
+*
+* The pure parts (navIndexOf, openTopOf, branchLines) are tested in
+* test/tree-chips.test.ts; renderTreeChips needs a document.
+*/
+/** Ids are index paths ("0", "0.2", "0.2.1"), so a reload keeps the focus. */
+function navIndexOf(root) {
+	const byId = /* @__PURE__ */ new Map();
+	return {
+		ix: indexTree(root?.children ?? [], (n) => n.children, (n, parent, i) => {
+			const id = parent === null ? String(i) : `${parent}.${i}`;
+			byId.set(id, n);
+			return id;
+		}),
+		byId
+	};
+}
+/** The open branch's top chip: the one the accordion has open (null: none). */
+function openTopOf(nav) {
+	const ids = Object.keys(nav.expanded);
+	return ids.length ? ids[0].split(".")[0] : null;
+}
+/** The open branch's lines, in order: every visible descendant of its top chip. */
+function branchLines(ix, nav) {
+	const top = openTopOf(nav);
+	const lines = [];
+	const walk = (id, level) => {
+		for (const c of ix.children.get(id) ?? []) {
+			if (!isVisible(ix, nav, c)) continue;
+			lines.push({
+				id: c,
+				level
+			});
+			walk(c, level + 1);
+		}
+	};
+	if (top !== null) walk(top, 0);
+	return lines;
+}
+const GLYPH = {
+	open: "○",
+	doing: "◐",
+	blocked: "!",
+	done: "✓"
+};
+const INK = {
+	open: "oklch(0.62 0.03 260)",
+	doing: "oklch(0.6 0.16 250)",
+	blocked: "oklch(0.7 0.16 70)",
+	done: "oklch(0.62 0.15 150)"
+};
+const ACCENT = "oklch(0.58 0.21 33)";
+/** The chips' CSS, for the shadow root that holds them (the box's). */
+const TREE_CHIPS_CSS = `
+.chips { min-width: 0; max-width: 100%; display: flex; flex-direction: column; gap: 2px; line-height: 1.35; }
+.chiprow { pointer-events: auto; display: flex; column-gap: 12px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; white-space: nowrap; scrollbar-width: none; }
+.chiprow::-webkit-scrollbar { display: none; }
+.chips button { all: unset; cursor: pointer; pointer-events: auto; text-align: start; }
+.chiprow > button { flex: none; min-height: 24px; }
+.chiprow > button[data-open] { font-weight: 600; }
+.chips button[data-focus] .lbl { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.chiplines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.chiplines .note { margin: 0; padding-inline-start: 12px; font-size: 10px; opacity: .6; }
+.chips .g { display: inline-block; margin-inline-end: 2px; }
+.chips .done { opacity: .6; }
+.chips .need { margin-inline-start: 2px; font-weight: 700; color: ${ACCENT}; }
+.chips .cnt { margin-inline-start: 2px; opacity: .6; font-variant-numeric: tabular-nums; }
+.chips .tw { margin-inline-end: 2px; opacity: .6; }
+.chips .status { margin: 0; opacity: .6; }
+`;
+const el = (tag, cls, text) => {
+	const e = document.createElement(tag);
+	if (cls) e.className = cls;
+	if (text !== void 0) e.textContent = text;
+	return e;
+};
+/** A node's label: status glyph (blinking while in progress), title, (!), 〔open〕 when its branch is shut. */
+function label(node, shut, needsYou) {
+	const box = el("span", "lbl");
+	if (node.status) {
+		const g = el("span", `g${node.status === "doing" ? " blink" : ""}`, GLYPH[node.status]);
+		g.setAttribute("aria-hidden", "true");
+		g.style.color = INK[node.status];
+		box.append(g);
+	}
+	box.append(el("span", node.status === "done" ? "done" : void 0, node.title || "—"));
+	if (node.needsOwner && node.status !== "done") {
+		const n = el("span", "need", "(!)");
+		n.setAttribute("aria-label", needsYou);
+		box.append(n);
+	}
+	const open = shut ? countOpen(node).open : 0;
+	if (open > 0) box.append(el("span", "cnt", `〔${open}〕`));
+	return box;
+}
+/**
+* The chips and the open branch, as one element. Taps never take the
+* input's focus (pointerdown is prevented), so the draft and the open log stay.
+*/
+function renderTreeChips(o) {
+	if (o.status || !o.root || !o.ix.roots.length) {
+		const p = el("p", "status", o.status ?? o.empty);
+		p.dataset.testid = "tree-chips-status";
+		return p;
+	}
+	const keep = (b, id) => {
+		b.addEventListener("pointerdown", (e) => e.preventDefault());
+		b.addEventListener("click", () => o.onNav({
+			type: "tapChip",
+			id
+		}));
+	};
+	const top = openTopOf(o.nav);
+	const focus = o.nav.focusId;
+	const wrap = el("div", "chips");
+	wrap.dataset.testid = "tree-chips";
+	const row = el("div", "chiprow");
+	row.setAttribute("role", "tablist");
+	row.setAttribute("aria-label", o.label);
+	for (const id of o.ix.roots) {
+		const node = o.byId.get(id);
+		const b = el("button");
+		b.setAttribute("type", "button");
+		b.setAttribute("role", "tab");
+		b.setAttribute("aria-selected", String(id === top));
+		b.dataset.id = id;
+		if (id === focus) b.dataset.focus = "";
+		if (id === top) b.dataset.open = "";
+		b.append(label(node, id !== top, o.needsYou));
+		keep(b, id);
+		row.append(b);
+	}
+	wrap.append(row);
+	const lines = branchLines(o.ix, o.nav);
+	if (lines.length) {
+		const ul = el("ul", "chiplines");
+		for (const { id, level } of lines) {
+			const node = o.byId.get(id);
+			const kids = o.ix.children.get(id) ?? [];
+			const shut = kids.length > 0 && !kids.some((k) => isVisible(o.ix, o.nav, k));
+			const li = el("li");
+			li.dataset.id = id;
+			li.dataset.level = String(level);
+			li.style.paddingInlineStart = `${level * .75}rem`;
+			const b = el("button");
+			b.setAttribute("type", "button");
+			if (id === focus) b.dataset.focus = "";
+			if (kids.length) {
+				const tw = el("span", "tw", shut ? "▸" : "▾");
+				tw.setAttribute("aria-hidden", "true");
+				b.append(tw);
+			}
+			b.append(label(node, shut, o.needsYou));
+			keep(b, id);
+			li.append(b);
+			if (node.note && !shut && level < 1) li.append(el("p", "note", node.note));
+			ul.append(li);
+		}
+		wrap.append(ul);
+	}
+	return wrap;
+}
+
+//#endregion
+//#region src/box.ts
+/** A scroll this soon after the user's wheel, touch, pointer or key is theirs. */
+const USER_SCROLL_MS = 1e3;
+/** A page's label is "<path> <user agent>": the path and a short device hint. */
+function pageHint(label) {
+	const [path = "", ...rest] = label.split(" ");
+	const ua = rest.join(" ");
+	const device = /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? "Android" : /Macintosh|Mac OS/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : /Linux|X11/.test(ua) ? "Linux" : ua.split(" ").find((w) => w !== "pwa") ?? "";
+	const pwa = /(^| )pwa( |$)/.test(ua) ? " app" : "";
+	return device ? `${path} · ${device}${pwa}` : path;
+}
+const Base = typeof HTMLElement === "undefined" ? class {} : HTMLElement;
+const synth = () => typeof speechSynthesis === "undefined" ? null : speechSynthesis;
+/** The box's own read-aloud voice, chosen again whenever the device's voices change. */
+const voicePicker = createVoicePicker({
+	voices: () => synth()?.getVoices() ?? [],
+	watch: watchVoices
+});
+let unlocked = false;
+/** iOS speaks only after a user gesture: an empty utterance on the first one unlocks it. */
+function unlockSpeech() {
+	const s = synth();
+	if (unlocked || !s) return;
+	unlocked = true;
+	s.speak(new SpeechSynthesisUtterance(""));
+}
+/** Drop whatever is being read and queued — the owner has started typing. */
+function cancelSpeech() {
+	const s = synth();
+	if (s && (s.speaking || s.pending)) s.cancel();
+}
+const reducedMotion = () => typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+/** env(safe-area-inset-*) in px, measured with a probe. */
+function safeInsets() {
+	const probe = document.createElement("div");
+	probe.style.cssText = "position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left)";
+	document.body.append(probe);
+	const cs = getComputedStyle(probe);
+	const v = {
+		top: Number.parseFloat(cs.paddingTop) || 0,
+		left: Number.parseFloat(cs.paddingLeft) || 0,
+		right: Number.parseFloat(cs.paddingRight) || 0
+	};
+	probe.remove();
+	return v;
+}
+const pad = (n) => String(n).padStart(2, "0");
+/** HH:MM:SS today, YYYY-MM-DD HH:MM before — local time, ISO order. */
+function when(at, now = /* @__PURE__ */ new Date()) {
+	const d = new Date(at);
+	const day = (x) => `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}`;
+	const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+	return day(d) === day(now) ? `${hm}:${pad(d.getSeconds())}` : `${day(d)} ${hm}`;
+}
+/** The input grows to about five lines, then scrolls inside itself. */
+const INPUT_MAX_PX = 128;
+const ICONS = {
+	lock: `<svg viewBox="0 0 16 16" width="10" height="10" aria-hidden="true"><path fill="currentColor" d="M5 7V5a3 3 0 0 1 6 0v2h1v7H4V7zm1.5 0h3V5a1.5 1.5 0 0 0-3 0z"/></svg>`,
+	sparkle: `<svg viewBox="0 0 256 256" width="1em" height="1em" aria-hidden="true"><path fill="currentColor" d="M104,40Q112,136,200,144Q112,152,104,248Q96,152,8,144Q96,136,104,40ZM200,8Q204,48,244,52Q204,56,200,96Q196,56,156,52Q196,48,200,8Z"/></svg>`,
+	speaker: `<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M2 6h3l4-3v10l-4-3H2z"/><path d="M11 5.5a3.5 3.5 0 0 1 0 5M12.5 3.5a6 6 0 0 1 0 9" stroke="currentColor" fill="none" stroke-width="1.3"/></svg>`,
+	mark: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10a4 4 0 0 1 4 4v7a4 4 0 0 1-4 4h-7l-5 3v-3.6A4 4 0 0 1 3 14V7a4 4 0 0 1 4-4Z"/><path d="M10.5 6.5v8"/><path d="M15.5 5.6l.55 1.35 1.35.55-1.35.55-.55 1.35-.55-1.35-1.35-.55 1.35-.55Z" fill="oklch(0.72 0.17 150)" stroke="oklch(0.72 0.17 150)" stroke-width="1"/></svg>`,
+	plus: `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>`,
+	tree: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="10" width="7" height="4.5" rx="1.5"/><rect x="14" y="16.5" width="7" height="4.5" rx="1.5"/><path d="M6.5 8v10.75H14M6.5 12.25H14"/></svg>`,
+	files: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5.5 5h13L21 13v6H3v-6Z"/></svg>`
+};
+const CSS = `
+:host {
+  all: initial;
+  position: fixed;
+  right: 0.5rem;
+  bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  z-index: var(--liagent-z, 40);
+  /* Click-through: only the bar, the menu, the pairing line and opted-in rows take pointer events. */
+  pointer-events: none;
+  font: 12px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--liagent-fg, CanvasText);
+  --bg: var(--liagent-bg, Canvas);
+  --glass: color-mix(in oklch, var(--bg) 55%, transparent);
+  --line: color-mix(in oklch, currentColor 25%, transparent);
+  --muted: color-mix(in oklch, currentColor 55%, transparent);
+  /* Lines straight over the page (floating, frontier): a stronger halo, never a fill. */
+  --halo: 0 0 1px var(--bg), 0 0 2px var(--bg), 0 0 4px var(--bg), 0 0 8px var(--bg);
+  --accent: var(--liagent-accent, oklch(0.55 0.12 250));
+  /* Geometry: the corner radius follows from the control size, so a round
+     control one line high in a corner is concentric with it. */
+  --control: var(--liagent-control, 2.125rem);
+  --bar-b: var(--liagent-bar-border, 1px);
+  --bar-pad: var(--liagent-bar-pad, 2px);
+  --bar-r: calc(var(--bar-b) + var(--bar-pad) + var(--control) / 2);
+}
+* { box-sizing: border-box; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.halo { text-shadow: 0 0 3px var(--bg), 0 0 6px var(--bg); }
+.box {
+  position: relative;
+  width: var(--liagent-width, min(20rem, calc(100vw - 1rem)));
+  display: flex; flex-direction: column; pointer-events: none;
+  opacity: .6; transition: opacity .15s;
+}
+.box:focus-within, .box:active, .box.on { opacity: 1; }
+/* The typing glass: the box's own area only, never the page around it. */
+.box::before {
+  content: ""; position: absolute; inset: -4px; z-index: -1; pointer-events: none;
+  border-radius: calc(var(--bar-r) + 4px);
+  background: color-mix(in oklch, var(--bg) 60%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklch, currentColor 16%, transparent);
+  backdrop-filter: blur(12px) saturate(1.4); -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  opacity: 0; visibility: hidden; transition: opacity .15s ease-out, visibility 0s linear .15s;
+}
+.box.typing::before { opacity: 1; visibility: visible; transition: opacity .15s ease-out, visibility 0s; }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .box::before { background: color-mix(in oklch, var(--bg) 90%, transparent); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .box::before { background: color-mix(in oklch, var(--bg) 90%, transparent); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+/* The one scroller: the tree (when open) on top, the log below. Compact at rest. */
+.column {
+  max-height: var(--liagent-log-max, 4.4rem); min-height: 3rem; overflow-y: auto; padding: 6px 8px;
+  scrollbar-width: none; transition: max-height .15s ease-out;
+}
+/* While the box is in use the history takes the wheel (its gaps too); at rest
+   only the lines do, so the empty space stays click-through. */
+.box:focus-within .column, .box.on .column, .box.typing .column { pointer-events: auto; }
+.log li { pointer-events: auto; }
+.column::-webkit-scrollbar { display: none; }
+.column.wide { max-height: var(--liagent-log-max-wide, 30vh); }
+.column.fade { -webkit-mask-image: linear-gradient(to bottom, transparent, black .9rem); mask-image: linear-gradient(to bottom, transparent, black .9rem); }
+.column.wide.fade { -webkit-mask-image: linear-gradient(to bottom, transparent, black 2.5rem); mask-image: linear-gradient(to bottom, transparent, black 2.5rem); }
+.treepanel { pointer-events: none; display: flex; flex-direction: row-reverse; align-items: flex-start; min-width: 0; max-width: 100%; padding-bottom: 4px; animation: appear .18s ease-out; }
+@keyframes appear { from { opacity: 0; } }
+.treepanel .tbody { flex: 1; min-width: 0; }
+.treepanel .x { pointer-events: auto; flex: none; position: relative; padding: 0 6px; font-size: 10px; color: var(--muted); }
+.ftree .tbody { max-height: var(--liagent-log-max, 4.4rem); overflow-y: auto; scrollbar-width: none; }
+.ftree .tbody.wide { max-height: var(--liagent-log-max-wide, 30vh); }
+.ftree .tbody.fade { -webkit-mask-image: linear-gradient(to bottom, transparent, black .9rem); mask-image: linear-gradient(to bottom, transparent, black .9rem); }
+.blink { animation: blink 1.6s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: .35; } }
+.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+:host(:not(:focus-within)) .log li.older { display: none; }
+.log li { display: flex; align-items: flex-start; gap: 6px; }
+.text { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; padding-top: 1px; }
+.text a { pointer-events: auto; color: inherit; text-decoration: underline; }
+.log .hint { opacity: .6; display: block; }
+.polished { all: unset; pointer-events: auto; cursor: pointer; margin-inline-start: 4px; font-size: .85em; opacity: .55; vertical-align: baseline; }
+.polished[aria-pressed="true"] { opacity: .9; }
+.raw { opacity: .65; }
+.log li.node { border-inline-start: 2px solid var(--node); padding-inline-start: 4px; }
+.log .channel { color: var(--channel, currentColor); background: color-mix(in srgb, var(--channel, currentColor) 14%, transparent); border-radius: 3px; font-weight: 600; margin-inline-end: 2px; }
+.log .sub { display: block; font-size: 10px; line-height: 1.2; opacity: .65; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Fixed size whatever loads, so a late picture shifts nothing. */
+.av {
+  --s: var(--liagent-avatar, 18px);
+  flex: none; width: var(--s); height: var(--s); border-radius: 50%; overflow: hidden;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 600; font-size: calc(var(--s) * 0.55); line-height: 1; text-shadow: none; user-select: none;
+}
+img.av { display: block; object-fit: cover; }
+.av > * { max-width: 100%; max-height: 100%; }
+.sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.warn { padding: 4px 8px 0; font-size: 10px; color: oklch(0.6 0.17 45); }
+.asks { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 0 0 4px; }
+.asks:empty { display: none; }
+.ask {
+  pointer-events: auto; display: inline-flex; align-items: center; gap: 4px;
+  border-radius: 999px; padding: 2px 2px 2px 6px; font-size: 10px; color: oklch(1 0 0);
+  background: oklch(0.45 0.12 30); text-shadow: none;
+}
+.ask b { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; }
+.ask button { border-radius: 999px; padding: 0 6px; }
+.ask .y { background: oklch(0.55 0.15 145); }
+.ask .c { background: oklch(0.5 0.1 230); }
+.ask .n { background: oklch(0.4 0.02 260); }
+.ask .tag { opacity: .85; }
+.askwrap { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; pointer-events: auto; }
+.pagelist {
+  display: flex; flex-direction: column; gap: 1px; padding: 3px 8px; border-radius: 8px; font-size: 11px;
+  border: 1px solid var(--line); background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.pagelist label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.pagelist input { margin: 0; }
+/* The bar's row: two grid columns, the bar's and a spacer's, trading 1fr ⇄ 0fr. */
+.rowbox { position: relative; display: grid; grid-template-columns: 1fr 0fr; transition: grid-template-columns .18s ease-out; }
+.min .rowbox { grid-template-columns: 0fr 1fr; }
+.bar {
+  pointer-events: auto; position: relative; display: flex; align-items: flex-end;
+  padding: var(--bar-pad);
+  /* The host can square or round the top and bottom separately (::part(bar) works too). */
+  border-radius: var(--liagent-bar-radius-top, var(--bar-r)) var(--liagent-bar-radius-top, var(--bar-r)) var(--liagent-bar-radius-bottom, var(--bar-r)) var(--liagent-bar-radius-bottom, var(--bar-r));
+  border: var(--bar-b) solid var(--line); background: var(--glass);
+  backdrop-filter: blur(12px) saturate(1.5); -webkit-backdrop-filter: blur(12px) saturate(1.5);
+  touch-action: none; text-shadow: none;
+  transition: border-color .15s ease-out, background-color .15s ease-out;
+}
+/* One frame while typing: the glass is the frame, so the bar's own box is not
+   drawn inside it. The border goes transparent (its width stays, so nothing
+   moves); its tint and blur go. At rest the border is back. */
+.box.typing .bar { border-color: transparent; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.min { --bar-pad: var(--liagent-bar-pad-min, 1px); }
+/* 40px targets: the hit area reaches 40px whatever the drawn size. */
+.tap { position: relative; flex: none; width: max(40px, var(--control)); height: var(--control); display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; }
+.tap::before { content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, 40px); height: max(100%, 40px); transform: translate(-50%, -50%); }
+.mark, .treebtn { touch-action: none; cursor: grab; }
+.treebtn { cursor: pointer; }
+.mark .dot { position: absolute; top: 4px; inset-inline-end: 6px; width: 6px; height: 6px; border-radius: 50%; }
+.evals {
+  position: absolute; top: 0; inset-inline-end: 2px; min-width: 14px; height: 14px; padding: 0 2px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 8px; line-height: 1; color: oklch(1 0 0);
+  background: oklch(0.55 0.15 30); font-variant-numeric: tabular-nums;
+}
+.evals.ran { animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .4; } }
+.thint { pointer-events: none; position: absolute; inset-inline-start: 0; bottom: 100%; margin-bottom: 8px; white-space: nowrap; font-size: 10px; text-shadow: var(--halo); }
+.slot { position: relative; display: flex; flex: 1; width: 0; min-width: 0; transition: opacity .18s ease-out; }
+.min .slot { opacity: 0; max-height: 2rem; overflow: hidden; }
+textarea {
+  pointer-events: auto; display: block; flex: 1; min-width: 0; resize: none; margin: 0; align-self: flex-end;
+  font-size: 16px; line-height: 1.35; font-family: inherit; color: inherit; height: var(--control); min-height: var(--control); max-height: ${INPUT_MAX_PX}px;
+  padding: 4px 8px; border: 1px solid transparent; background: transparent; outline: none;
+  overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
+}
+textarea.pe { padding-inline-end: 24px; }
+textarea::placeholder { color: color-mix(in oklch, currentColor 45%, transparent); }
+.mirror {
+  pointer-events: none; position: absolute; inset: 0; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere;
+  border: 1px solid transparent; padding: 4px 8px; font-size: 16px; line-height: 1.35; font-family: inherit;
+}
+.mirror .ghost { visibility: hidden; }
+.mirror .partial { color: var(--muted); }
+.notice { margin: 0; flex: 1; min-width: 0; padding: 8px; opacity: .8; }
+.spin {
+  pointer-events: none; position: absolute; inset-inline-end: 6px; top: 50%; margin-top: -6px;
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid var(--line); border-top-color: var(--liagent-agent, oklch(0.55 0.14 150));
+  animation: rot .8s linear infinite;
+}
+@keyframes rot { to { transform: rotate(360deg); } }
+.mic { pointer-events: auto; flex: none; display: flex; align-items: center; min-height: var(--control); }
+.mic.inside { align-self: flex-end; }
+.cell { display: contents; }
+.act { color: var(--muted); font-size: 15px; line-height: 1; }
+.act:disabled { opacity: .4; cursor: default; }
+.act svg, .plus svg { width: 1em; height: 1em; }
+.plus { color: var(--muted); font-size: 18px; line-height: 1; }
+.plus[aria-expanded="true"] { color: inherit; }
+.min .plus { display: none; }
+.amenu {
+  pointer-events: auto; position: absolute; bottom: 100%; left: 0; margin-bottom: 4px; z-index: 1;
+  width: min(17rem, 100%); max-height: 60vh; overflow-y: auto; padding: 4px; text-shadow: none;
+  border-radius: calc(var(--bar-r) - 2px);
+  background: var(--liagent-menu-bg, color-mix(in oklch, var(--bg) 92%, transparent));
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 12px 32px -10px color-mix(in oklch, CanvasText 40%, transparent);
+}
+.amenu .head { padding: 6px 10px 2px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; opacity: .6; }
+.amenu .item { display: flex; width: 100%; min-height: 44px; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 12px; text-align: start; font-size: 13px; }
+.amenu .item:not(:disabled):hover, .amenu .item:focus-visible { background: color-mix(in oklch, currentColor 8%, transparent); }
+.amenu .item:disabled { opacity: .55; cursor: default; }
+.amenu .badge {
+  flex: none; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 14px; color: var(--accent); background: color-mix(in oklch, var(--accent) 14%, transparent);
+}
+.amenu .badge svg { width: 1em; height: 1em; }
+.amenu .lab { flex: 1; min-width: 0; }
+.amenu .lab > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amenu .hint { font-size: 11px; color: var(--muted); }
+.attrow { pointer-events: auto; padding: 0 0 4px; }
+.attached {
+  display: flex; align-items: flex-start; gap: 4px; max-width: 100%; padding: 2px 2px 2px 8px; font-size: 11px; line-height: 1.35;
+  border-inline-start: 2px solid var(--accent); border-radius: 8px; background: color-mix(in oklch, var(--accent) 10%, var(--glass));
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+/* Inside the glass: the rail alone, no tinted box of its own. */
+.box.typing .attached { border-radius: 0; background: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.attached .what { flex: 1; min-width: 0; }
+.attached .x { all: unset; cursor: pointer; flex: none; padding: 0 6px; color: var(--muted); font-size: 13px; line-height: 1.35; }
+.ctx { all: unset; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-width: 1.4em; height: 1.4em; margin-inline-end: 4px; border-radius: 999px; font-size: 11px; line-height: 1; vertical-align: middle; background: color-mix(in oklch, var(--accent) 14%, transparent); }
+.ctx:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ctx[aria-expanded="true"] { background: color-mix(in oklch, var(--accent) 28%, transparent); }
+.ctx-detail { margin: 2px 0; padding: 2px 6px; border-inline-start: 2px solid color-mix(in oklch, var(--accent) 75%, transparent); font-size: 11px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 10rem; overflow-y: auto; }
+.ctx-detail .ctx-title { font-weight: 600; }
+.quote, .attached .q {
+  all: unset; display: block; min-width: 0; max-width: 100%; cursor: pointer; pointer-events: auto;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted);
+}
+.quote.whole, .attached .q.whole { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 10rem; overflow-y: auto; }
+.quote { margin: 1px 0; padding-inline-start: 6px; border-inline-start: 2px solid color-mix(in oklch, var(--accent) 75%, transparent); font-size: 11px; }
+.files { display: flex; flex-wrap: wrap; gap: 4px; margin: 1px 0; font-size: 11px; }
+/* Files for the next line (box.files): chips over the input. */
+.filerow { pointer-events: auto; display: flex; flex-wrap: wrap; gap: 4px; padding: 0 0 4px; }
+.fchip {
+  position: relative; display: flex; align-items: center; gap: 6px; max-width: 14rem; overflow: hidden;
+  padding: 3px 2px 3px 3px; border-radius: 8px; font-size: 11px; line-height: 1.3;
+  background: color-mix(in oklch, var(--accent) 10%, var(--glass)); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+.fchip .thumb { flex: none; width: 28px; height: 28px; border-radius: 5px; object-fit: cover; }
+.fchip .ext { display: inline-flex; align-items: center; justify-content: center; font-size: 9px; color: var(--muted); background: color-mix(in oklch, currentColor 8%, transparent); }
+.fchip .lab { flex: 1; min-width: 0; }
+.fchip .lab > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fchip .note { font-size: 10px; color: var(--muted); }
+.fchip .note.bad, .fpanel .bad { color: var(--liagent-danger, oklch(0.55 0.17 25)); }
+.fchip .x { all: unset; cursor: pointer; flex: none; padding: 0 6px; color: var(--muted); font-size: 13px; line-height: 24px; }
+.fchip .prog { position: absolute; inset-inline-start: 0; bottom: 0; height: 2px; background: var(--accent); transition: width .15s linear; }
+/* Files under a sent line: safe images inline, the rest as links. */
+.sfiles { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 2px 0; font-size: 11px; }
+.sfile { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; pointer-events: auto; }
+.sfile img { display: block; max-height: 8rem; max-width: 10rem; border-radius: 8px; object-fit: cover; }
+.sfile .fname { display: inline-flex; gap: 6px; max-width: 14rem; padding: 2px 8px; border-radius: 8px; color: inherit; text-decoration: none; background: color-mix(in oklch, var(--accent) 10%, transparent); }
+.sfile .fname .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sfile .fname .z { flex: none; color: var(--muted); }
+.fact { flex: none; padding: 3px 10px; border-radius: 999px; font-size: 11px; line-height: 1.3; color: oklch(1 0 0); background: var(--accent); }
+.fact.del { color: var(--liagent-danger, oklch(0.55 0.17 25)); background: color-mix(in oklch, currentColor 10%, transparent); }
+.fact.del.yes { color: oklch(1 0 0); background: var(--liagent-danger, oklch(0.55 0.17 25)); }
+/* The drop target: the whole box while files are dragged over the window. */
+.drop {
+  pointer-events: auto; position: absolute; inset: 0; z-index: 3; display: flex; align-items: center; justify-content: center;
+  min-height: 6rem; padding: 8px; text-align: center; font-size: 13px; border-radius: var(--bar-r);
+  border: 2px dashed var(--accent); background: color-mix(in oklch, var(--accent) 16%, transparent);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+.drop[hidden] { display: none; }
+/* The + menu's Files: the stored files. */
+.fpanel {
+  pointer-events: auto; position: absolute; bottom: 100%; left: 0; margin-bottom: 4px; z-index: 1;
+  display: flex; flex-direction: column; width: min(20rem, 100%); max-height: min(24rem, 60vh); overflow: hidden;
+  padding: 4px; text-shadow: none; border-radius: calc(var(--bar-r) - 2px);
+  background: var(--liagent-menu-bg, color-mix(in oklch, var(--bg) 92%, transparent));
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 12px 32px -10px color-mix(in oklch, CanvasText 40%, transparent);
+}
+.fpanel[hidden] { display: none; }
+.fpanel .fhead { display: flex; align-items: center; padding: 4px 4px 0 10px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.fpanel .fhead span { flex: 1; opacity: .6; }
+.fpanel .fhead .x { padding: 4px 8px; font-size: 14px; color: var(--muted); }
+.fpanel .fusage, .fpanel .fline { padding: 2px 10px 4px; font-size: 11px; color: var(--muted); }
+.fpanel .fline.bad { color: var(--liagent-danger, oklch(0.55 0.17 25)); }
+.fpanel .frows { min-height: 0; overflow-y: auto; }
+.fpanel .frow { display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 12px; }
+.fpanel .frow .q { flex: 1; min-width: 0; }
+.fpanel .fwhat { flex: 1; min-width: 0; color: inherit; text-decoration: none; }
+.fpanel .fwhat > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fpanel .meta { font-size: 10px; color: var(--muted); }
+.files a, .files span { pointer-events: auto; color: inherit; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.unread {
+  pointer-events: none; position: absolute; top: -6px; inset-inline-end: -6px; border-radius: 999px; padding: 0 4px;
+  font-size: 10px; line-height: 16px; color: oklch(1 0 0); background: oklch(0.55 0.2 260);
+}
+.drain {
+  position: absolute; inset: 0 12px auto 12px; height: 2px; background: oklch(0.55 0.2 260 / .6);
+  transform-origin: left; animation: drain var(--drain-ms) linear both; pointer-events: none;
+}
+@keyframes drain { to { transform: scaleX(0); } }
+.aim { position: absolute; inset-inline-start: 84px; bottom: 100%; margin-bottom: 4px; max-width: calc(100% - 6rem); display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; }
+.aim > * { pointer-events: auto; }
+.presence { position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%); margin-bottom: 4px; z-index: 2; display: flex; flex-direction: column-reverse; align-items: center; pointer-events: auto; }
+.presence[hidden] { display: none; }
+.presence .pstack { display: inline-flex; align-items: center; padding: 2px 4px; border-radius: 12px; background: var(--glass); border: 1px solid var(--line); cursor: pointer; }
+.presence .pstack > .pav + .pav { margin-inline-start: -6px; }
+.presence .pstack:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
+.pav { width: 18px; height: 18px; flex: none; border-radius: 50%; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 600; line-height: 1; background: var(--pav-bg, #888); color: var(--pav-fg, #fff); box-shadow: 0 0 0 1.5px var(--glass, #fff); }
+.pav.agent { border-radius: 5px; }
+.pav img { width: 100%; height: 100%; object-fit: cover; }
+.pmore { margin-inline-start: 4px; font-size: 11px; font-variant-numeric: tabular-nums; opacity: .8; }
+.ppeek { list-style: none; margin: 0 0 4px; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); text-shadow: none; display: flex; flex-direction: column; gap: 3px; max-width: 16rem; }
+.ppeek[hidden] { display: none; }
+.prow { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; }
+.prow .pname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prow .ptag { opacity: .65; white-space: nowrap; }
+.menu.plist { left: 50%; transform: translateX(-50%); margin-bottom: 30px; max-height: 40vh; }
+.target { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; border: 1px solid var(--node, var(--line)); border-radius: 999px; padding: 0 6px; font-size: 10px; line-height: 16px; background: var(--glass); }
+.target.preview { opacity: .7; }
+.target button { all: unset; cursor: pointer; line-height: 1; }
+.nodes { list-style: none; margin: 0; padding: 2px 0; max-width: 100%; border: 1px solid var(--line); border-radius: 8px; font-size: 11px; background: var(--glass); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+/* Inside the glass: plain rows on it, no second box. */
+.box.typing .nodes { border-color: transparent; background: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.nodes button { all: unset; display: block; cursor: pointer; padding: 1px 8px; }
+/* Minimized: the tree, the floating lines and the frontier, on the bar's side. */
+.floatbox {
+  pointer-events: none; position: absolute; bottom: 100%; margin-bottom: 4px; left: 0;
+  width: max-content; max-width: min(20rem, calc(100vw - 16px));
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
+}
+.floatbox[data-side="center"] { align-items: center; text-align: center; }
+.floatbox[data-side="right"] { align-items: flex-end; text-align: right; }
+.floats, .frontier { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; align-items: inherit; max-width: 100%; }
+.floats:empty, .frontier:empty, .ftree:empty { display: none; }
+.float {
+  pointer-events: auto; max-width: 100%; padding: 2px 0; white-space: pre-wrap; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden;
+  text-shadow: var(--halo); opacity: 1; transition: none;
+}
+.float.fading { opacity: 0; transition: opacity ${FADE_MS}ms ease-out; }
+.float .who { margin-inline-end: 4px; font-weight: 500; }
+.frontier > li { pointer-events: auto; max-width: 100%; min-width: 0; text-shadow: var(--halo); }
+.frontier .fl { display: flex; min-width: 0; align-items: center; }
+.frontier .fb { display: flex; min-width: 0; align-items: center; gap: 4px; padding: 2px 4px 2px 0; text-align: start; }
+.frontier .fb[aria-expanded] { cursor: pointer; }
+.frontier .fb:not([aria-expanded]) { cursor: default; }
+.frontier .m { width: 12px; flex: none; text-align: center; opacity: .7; }
+.frontier .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.frontier .n { flex: none; opacity: .7; }
+.frontier .fav {
+  display: inline-flex; width: 16px; height: 16px; flex: none; align-items: center; justify-content: center;
+  border-radius: 50%; font-size: 9px; line-height: 1; font-weight: 600; text-shadow: none;
+}
+.frontier .id { position: relative; margin-inline-start: auto; flex: none; padding: 0 8px 0 6px; user-select: none; -webkit-user-select: none; font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); }
+.frontier .full {
+  position: absolute; inset-inline-end: 0; bottom: 100%; margin-bottom: 4px; white-space: nowrap; padding: 2px 6px; border-radius: 6px;
+  border: 1px solid var(--line); background: color-mix(in oklch, var(--bg) 85%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+.frontier .items { list-style: none; margin: 0; padding: 0 8px 4px; max-height: 9.75rem; overflow-y: auto; overscroll-behavior: contain; }
+.frontier .items li { display: flex; min-width: 0; align-items: center; gap: 4px; padding: 1px 0; }
+.frontier .items .p { margin-inline-start: 4px; font-size: 10px; color: var(--muted); }
+.menu {
+  pointer-events: auto; position: absolute; bottom: 100%; left: 0; margin-bottom: 4px; min-width: 12rem; max-height: 60vh; overflow-y: auto;
+  display: flex; flex-direction: column; padding: 4px 0; border-radius: 8px; text-shadow: none;
+  border: 1px solid var(--line); background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.menu > * { padding: 5px 12px; text-align: start; display: flex; align-items: center; gap: 8px; }
+.menu .status { opacity: .65; }
+.menu .rate { gap: 4px; padding-top: 2px; padding-bottom: 2px; }
+.menu .rate span { opacity: .65; margin-inline-end: 4px; }
+.menu .rate button { min-width: 40px; min-height: 28px; border-radius: 4px; font-variant-numeric: tabular-nums; opacity: .7; }
+.menu .rate button[aria-checked="true"] { opacity: 1; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.menu .sess, .menu .pg { opacity: .75; }
+.menu .sess span, .menu .pg span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu .sess button, .menu .pg button { text-decoration: underline; padding: 0; }
+.menu .head { opacity: .5; font-size: 10px; padding-bottom: 0; }
+.menu [aria-checked="false"] svg { opacity: .45; }
+${TREE_CHIPS_CSS}
+@media (prefers-reduced-motion: reduce) {
+  .rowbox, .slot, .column, .box, .box::before, .bar, .float.fading { transition: none !important; }
+  .blink, .treepanel, .evals.ran { animation: none; }
+}
+[hidden] { display: none !important; }
+`;
+const MIC_PLACES = [
+	"trailing",
+	"leading",
+	"inside",
+	"hidden"
+];
+const TREE_PLACES = [
+	"leading",
+	"menu",
+	"hidden"
+];
+/** A glyph or a cloned Node: never HTML. */
+function iconNode(icon, fallback) {
+	if (icon && typeof icon === "object") return icon.cloneNode(true);
+	return document.createTextNode(icon || fallback);
+}
+const keepFocus = (e) => e.preventDefault();
+/** True when `el` can still scroll by `dy` (so the wheel is its own). */
+function wheelScrolls(el, dy) {
+	if (dy < 0) return el.scrollTop > 0;
+	if (dy > 0) return el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+	return false;
+}
+/** The chat box element. Plain properties in, callbacks out; see the file header. */
+var ChatBox = class extends Base {
+	static get observedAttributes() {
+		return [
+			"mic-active",
+			"hold",
+			"mic-placement",
+			"tree-placement",
+			"all-pages",
+			"no-echo-toggle",
+			"collapsed-count"
+		];
+	}
+	/**
+	* Called with each draft that goes out, and the state-tree node it is
+	* addressed to (absent = the main thread); `opts.source` is "stt" when the
+	* line is dictation, sent unchanged; `opts.context` is what the user
+	* attached with the + menu; `opts.attachments` are the files stored
+	* through `box.files` for this line. Return false if it could not be sent
+	* (the draft, the attachment and the files are kept).
+	*/
+	onSend;
+	/** The user answered a pairing request. */
+	onAnswer;
+	/** End was pressed on a session in the menu. */
+	onEnd;
+	/** End was pressed (and, for this page, confirmed) on one of the user's pages in the menu. */
+	onEndPage;
+	/** The box aims at another node (setTarget, "@/…", ×): connectHub tells the hub, for presence. */
+	onTarget;
+	/**
+	* The host's avatar for a line that is not the agent's: its pictures are
+	* tried first, its name and id fill in. Return nothing to use the line's
+	* `sender` (and, on the user's own lines, `userAvatar`).
+	*/
+	avatarFor;
+	/**
+	* A voice output (`{ speak(text, id?), stop(why?) }`): replies are read
+	* through it instead of speechSynthesis. Typing calls `stop("typing")`.
+	*/
+	voice;
+	/**
+	* Read-aloud's voice when the box reads with speechSynthesis itself (no
+	* `voice` set): `lang` forces the language, `prefer` lists voice names to
+	* try first (exact, then substring; src/voice-pick.ts). With `voice` set,
+	* give the same to `voice({ lang, prefer })` instead.
+	*/
+	voicePrefer;
+	_messages = [];
+	_channelOf = null;
+	_channelFilter = null;
+	_live = false;
+	_listeners = 0;
+	_sessions = [];
+	_pending = null;
+	_evalRan = false;
+	_busy = false;
+	busyTimer;
+	lastReplyAt = 0;
+	_pages = [];
+	_self = "";
+	/** The pages ticked in the pairing request, per pair id. */
+	picked = /* @__PURE__ */ new Map();
+	/** The page whose End was tapped once (this page needs a second tap). */
+	confirmEnd = "";
+	_friend = false;
+	_notice = "";
+	_warning = "";
+	_defaultOpen = true;
+	_placeholder = "";
+	_treeSource;
+	/** `owner/repo` that a bare `#123` in the tree links to. */
+	treeRepo;
+	/** The tree's strings (English defaults; Chinese on a zh page). */
+	treeStrings = {};
+	_strings = {};
+	_agentAvatar = null;
+	_user = {};
+	/** The nodes agents listen at: "@/…" completions. */
+	_nodes = [];
+	/** The node the next line goes to ("/" = the main thread, no chip). */
+	_target = ROOT_NODE;
+	_presence = emptyPresence(ROOT_NODE);
+	_presenceHover = false;
+	/** Polished lines shown as first heard (their mark tapped). */
+	rawIds = /* @__PURE__ */ new Set();
+	/** The host's actions (+ menu items and bar buttons). */
+	_actions = [];
+	actionSubs = [];
+	/** What goes with the next line, and which actions attached it. */
+	_attached = null;
+	attachedBy = /* @__PURE__ */ new Set();
+	/** Quotes shown whole (tapped), by message id ("" = the chip's). */
+	wholeQuotes = /* @__PURE__ */ new Set();
+	/** Lines whose ctx chip is expanded. */
+	openCtx = /* @__PURE__ */ new Set();
+	_ctxRenderer = null;
+	noticeTimer;
+	/** The host's file handling (src/files.ts); absent: no files. */
+	_files;
+	/** Files for the next line: uploading or stored, removable until sent. */
+	pendingFiles = createPendingFiles({
+		files: () => this._files,
+		objectUrl: typeof URL !== "undefined" && typeof URL.createObjectURL === "function" ? {
+			create: (f) => URL.createObjectURL(f),
+			revoke: (u) => URL.revokeObjectURL(u)
+		} : void 0
+	});
+	/** A send waited for uploads: it goes once they are done. */
+	waitFiles = false;
+	/** Files are being dragged over the window (the drop overlay is up). */
+	dragging = 0;
+	/** The file list's state (the + menu's Files): loading, loaded, failed; which row asks to delete. */
+	fileList = {};
+	/** The log's re-pin scrolled it (its own scroll event is not the user's). */
+	ownPin = false;
+	/** A scroll position to restore once its line is rendered and laid out (scrollState, keep-scroll). */
+	restoreTo;
+	saveTimer;
+	root;
+	open = true;
+	panel = "none";
+	offline = false;
+	pos = {
+		x: 0,
+		y: 0
+	};
+	_draft = "";
+	/** The draft as dictation left it while nothing typed is in it (else null). */
+	pure = null;
+	_partial = "";
+	_micActive = false;
+	_hold = false;
+	_allPages = false;
+	/** The input has focus: the log opens. */
+	typing = false;
+	/** The mark is held: the input shows how to use it. */
+	holding = false;
+	settledLen = 0;
+	composing = false;
+	shiftEnter = false;
+	timer;
+	els = {};
+	markDrag = createDragFlag();
+	taps = createTapper({
+		onSingle: () => {
+			this.setPanel("none");
+			this.setOpen(!this.open);
+		},
+		onDouble: () => this.setPanel(this.panel === "menu" ? "none" : "menu")
+	});
+	atEnd = true;
+	arrivals = createArrivals();
+	readSeq = 0;
+	wasOpen = true;
+	floats = /* @__PURE__ */ new Map();
+	floatHover = false;
+	/** The frontier group opened by a tap (closed again on each minimize). */
+	frontierOpen = null;
+	place = {
+		side: "left",
+		left: 0
+	};
+	ro;
+	treeStop;
+	treeRoot = null;
+	treeError = "";
+	navIx = navIndexOf(null);
+	nav = initialNav(this.navIx.ix);
+	treeAxis = createAxisLock();
+	treeDragged = createDragFlag();
+	treePress = {
+		cells: 0,
+		limitAt: null
+	};
+	userScrollAt = 0;
+	get messages() {
+		return this._messages;
+	}
+	/** Replace the log (history on connect): never read aloud. */
+	set messages(v) {
+		this._messages = trimHistory(Array.isArray(v) ? v : []);
+		this.messagesChanged();
+	}
+	/** One message that arrived live: kept once per id; an agent's is read aloud. */
+	push(m) {
+		if (!m || typeof m.text !== "string" || typeof m.id !== "string") return;
+		if (this._messages.some((x) => x.id === m.id)) return;
+		this._messages = trimHistory([...this._messages, m]);
+		this.messagesChanged(m.from !== "agent");
+		if (m.from !== "agent") return;
+		this.lastReplyAt = Date.now();
+		this.busy = false;
+		this.speak(m.text, m.id, m);
+	}
+	/**
+	* The agent polished a voice line ({type:"edited"}): it changes in place,
+	* and is never read aloud again.
+	*/
+	edit(e) {
+		if (!e || typeof e.id !== "string" || typeof e.text !== "string") return;
+		this._messages = this._messages.map((m) => applyEdit(m, e));
+		this.renderLog();
+		this.renderFloatTexts();
+	}
+	/**
+	* One busy beat from the agent: the spinner shows for BUSY_MS unless the
+	* next beat renews it or a reply ends it. A beat right after a reply
+	* (BUSY_AFTER_REPLY_MS) is that work's tail, and ignored.
+	*/
+	beat(at = Date.now()) {
+		if (at - this.lastReplyAt < BUSY_AFTER_REPLY_MS) return;
+		this.busy = true;
+		this.busyTimer = setTimeout(() => this.busy = false, BUSY_MS);
+	}
+	set live(v) {
+		this._live = !!v;
+		this.renderStatus();
+	}
+	get live() {
+		return this._live;
+	}
+	/** The state-tree nodes agents listen at (the hub's `state.nodes`): "@/…" completions. */
+	set nodes(v) {
+		this._nodes = Array.isArray(v) ? v.filter((n) => typeof n === "string") : [];
+		this.renderAim();
+	}
+	/** The node the next line goes to ("/" = the main thread). */
+	get target() {
+		return this._target;
+	}
+	/** Address the next lines to a state-tree node ("/" = back to the main thread). */
+	setTarget(path) {
+		const was = this._target;
+		this._target = nodePath(path) ?? ROOT_NODE;
+		if (this._target !== was) {
+			this._presence = emptyPresence(this._target);
+			if (this.panel === "presence") this.setPanel("none");
+			this.renderPresence();
+			this.onTarget?.(this._target);
+		}
+		this.renderAim();
+		this.renderPlaceholder();
+	}
+	/**
+	* The hub's presence frame for this box's node (a snapshot replaces the
+	* list, a delta merges; another node's is ignored); null clears it.
+	* Frames should come through parsePresence (connectHub does that).
+	*/
+	presence(frame) {
+		this._presence = frame ? applyPresence(this._presence, frame) : emptyPresence(this._target);
+		this.renderPresence();
+	}
+	/** Who else is on the node now (this page left out). */
+	get present() {
+		return presenceView(this._presence.members, this._self).all;
+	}
+	/** Whether the strip shows its hover/focus preview. */
+	get presenceExpanded() {
+		return this._presenceHover;
+	}
+	/** Agents listening now (shown in the status). */
+	set listeners(v) {
+		this._listeners = Number(v) || 0;
+		this.renderStatus();
+	}
+	/** Approved sessions: a count on the tree button for eval, and a line with End in the menu. */
+	set sessions(v) {
+		this._sessions = Array.isArray(v) ? v : [];
+		this.renderEvals();
+		this.renderMenu();
+	}
+	/** A pairing waiting for the owner's answer. */
+	set pending(v) {
+		this._pending = v ?? null;
+		this.renderAsks();
+	}
+	/** Code just ran on this page: the eval count pulses. */
+	set evalRan(v) {
+		this._evalRan = !!v;
+		this.renderEvals();
+	}
+	/** The agent is working: a spinner in the input. */
+	set busy(v) {
+		clearTimeout(this.busyTimer);
+		this._busy = !!v;
+		this.renderBusy();
+	}
+	get busy() {
+		return this._busy;
+	}
+	/** The user's connected pages (the hub's state.pages): offered when allowing, ended from the menu. */
+	set pages(v) {
+		this._pages = Array.isArray(v) ? v : [];
+		this.renderAsks();
+		this.renderMenu();
+	}
+	/** Which of `pages` this page is (the hub's state.self). */
+	set self(v) {
+		this._self = v ?? "";
+		this.renderAsks();
+		this.renderMenu();
+		this.renderPresence();
+	}
+	/** A friend's page (not the user's): pairings are previews, with no chat scope to grant. */
+	set friend(v) {
+		this._friend = !!v;
+		this.renderAsks();
+	}
+	/** Shown instead of the input when this viewer cannot chat. */
+	set notice(v) {
+		this._notice = v ?? "";
+		this.renderInput();
+	}
+	/** A one-line note above the input (say, a message dropped by a rate limit). */
+	set warning(v) {
+		this._warning = v ?? "";
+		this.renderInput();
+	}
+	/** Open or minimized on first visit (later visits remember). Attribute: collapsed. */
+	set defaultOpen(v) {
+		this._defaultOpen = !!v;
+	}
+	/**
+	* The state tree (src/tree.ts): a URL serving its markdown, a function
+	* returning markdown or nodes, or a feed `{subscribe(onUpdate) → unsubscribe}`.
+	* The tree button shows it; it loads again each time the tree opens, and
+	* its frontier fills the minimized bar's lines. Unset: "No tree source".
+	*/
+	set treeSource(v) {
+		this._treeSource = v;
+		this.loadTree();
+		this.renderMenu();
+	}
+	get treeSource() {
+		return this._treeSource;
+	}
+	/** Show the state tree (true) or hide it (false). */
+	setTree(v) {
+		this.setPanel(v ? "tree" : this.panel === "tree" ? "none" : this.panel);
+	}
+	/**
+	* The host's actions (src/attach.ts ChatAction): + menu items, or bar
+	* buttons at the start or end (`place`). Replaced as a whole.
+	*/
+	set actions(v) {
+		for (const f of this.actionSubs.splice(0)) f();
+		this._actions = Array.isArray(v) ? v.filter((a) => a && typeof a.id === "string") : [];
+		for (const a of this._actions) if (a.subscribe) try {
+			this.actionSubs.push(a.subscribe(() => this.renderActions()));
+		} catch {}
+		this.renderActions();
+	}
+	get actions() {
+		return this._actions;
+	}
+	/**
+	* The host's file handling (src/files.ts ChatFiles): paste, drop and the
+	* upload actions store files through it, sent lines show their files from
+	* its URLs, and the + menu's Files lists (and deletes) what it stored.
+	* Absent (the default): no files; upload actions show disabled.
+	*/
+	set files(v) {
+		this._files = v && typeof v.upload === "function" && typeof v.url === "function" ? v : void 0;
+		if (!this._files) {
+			this.pendingFiles.take();
+			if (this.panel === "files") this.setPanel("none");
+		}
+		this.renderAll();
+	}
+	get files() {
+		return this._files;
+	}
+	/** Upload these through `box.files` for the next line, as pasted or dropped files are. */
+	addFiles(list) {
+		if (!this._files || this._notice) return;
+		this.pendingFiles.add(list);
+	}
+	/** Where the slotted mic goes. Attribute: mic-placement. */
+	get micPlacement() {
+		const v = this.getAttribute?.("mic-placement");
+		return v && MIC_PLACES.includes(v) ? v : "trailing";
+	}
+	set micPlacement(v) {
+		this.setAttribute("mic-placement", v);
+	}
+	/**
+	* While focus is outside the box, show only the last N lines; focusing it
+	* (focus-within) shows the full log. 0 / unset = always the full log.
+	* Attribute: collapsed-count.
+	*/
+	get collapsedCount() {
+		const n = Number(this.getAttribute?.("collapsed-count"));
+		return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+	}
+	set collapsedCount(v) {
+		if (v > 0) this.setAttribute("collapsed-count", String(Math.floor(v)));
+		else this.removeAttribute("collapsed-count");
+	}
+	/** Where the tree button goes. Attribute: tree-placement. */
+	get treePlacement() {
+		const v = this.getAttribute?.("tree-placement");
+		return v && TREE_PLACES.includes(v) ? v : "leading";
+	}
+	set treePlacement(v) {
+		this.setAttribute("tree-placement", v);
+	}
+	/** What goes with the next line (null: nothing). */
+	get attached() {
+		return this._attached;
+	}
+	/** Attach to the next line (merged with what is attached); null drops it all. */
+	attach(ctx, by) {
+		if (!ctx) {
+			this._attached = null;
+			this.attachedBy.clear();
+		} else {
+			this._attached = mergeContext(this._attached, ctx) ?? this._attached;
+			if (by) this.attachedBy.add(by);
+		}
+		this.wholeQuotes.delete("");
+		this.renderAttached();
+	}
+	/** Open or close the + menu. */
+	setActionsMenu(v) {
+		this.setPanel(v ? "plus" : this.panel === "plus" ? "none" : this.panel);
+	}
+	/** The box's own strings (English, or Chinese on a zh page, under these). */
+	set strings(v) {
+		this._strings = v ?? {};
+		this.renderAll();
+	}
+	/**
+	* The agent's avatar: your app's logo, as a URL (or URLs in fallback
+	* order) or an element (cloned onto each line). Attribute: agent-avatar.
+	* Unset: the agent name's initial.
+	*/
+	set agentAvatar(v) {
+		if (same(this._agentAvatar, v ?? null)) return;
+		this._agentAvatar = v ?? null;
+		this.renderLog();
+	}
+	get agentAvatar() {
+		return this._agentAvatar;
+	}
+	/**
+	* The user's picture on their own lines: a URL, or URLs in fallback order
+	* (the app's own avatar, then the sign-in provider's image). Attribute:
+	* user-avatar.
+	*/
+	set userAvatar(v) {
+		this.setUser("avatar", v ?? void 0);
+	}
+	/** The user's name: their fallback avatar's initial. Attribute: user-name. */
+	set userName(v) {
+		this.setUser("name", v ?? void 0);
+	}
+	/** A stable id (or a hash of one, never an email): the user's fallback colour. */
+	set userId(v) {
+		this.setUser("id", v ?? void 0);
+	}
+	/** Re-render the log only when the value changed (wrappers set props on every render). */
+	setUser(k, v) {
+		if (same(this._user[k], v)) return;
+		this._user = {
+			...this._user,
+			[k]: v
+		};
+		this.renderLog();
+	}
+	/**
+	* The host's channel for each history line (e.g. 世界 / 分支 / 報告 from
+	* m.to or m.taskPath): `{ label, color }` puts a 【label】 tag in that
+	* colour before the line, null puts none. Unset: no tags.
+	*/
+	set channelOf(v) {
+		this._channelOf = typeof v === "function" ? v : null;
+		this.renderLog();
+	}
+	get channelOf() {
+		return this._channelOf;
+	}
+	/**
+	* The host's view of a line's ctx: `(ctx, line) => ({ icon?, title, detail? } | null)`.
+	* null (or unset) uses the default (title from title/table/row/page/selection,
+	* detail as key: value lines). Text only. Setting it re-renders.
+	*/
+	set ctxRenderer(v) {
+		this._ctxRenderer = typeof v === "function" ? v : null;
+		this.renderLog();
+	}
+	get ctxRenderer() {
+		return this._ctxRenderer;
+	}
+	/** Show the lines whose channelOf(m)?.label equals this, plus world lines ({ world: true }); null shows all. */
+	set channelFilter(v) {
+		this._channelFilter = typeof v === "string" ? v : null;
+		this.renderLog();
+	}
+	get channelFilter() {
+		return this._channelFilter;
+	}
+	set placeholder(v) {
+		this._placeholder = v;
+		this.renderPlaceholder();
+	}
+	/** The draft in the input. */
+	get draft() {
+		return this._draft;
+	}
+	/**
+	* Set the draft. With `source: "stt"` it is dictation: sent unchanged, the
+	* line goes out with source "stt" (anything typed into it makes it the
+	* user's own). It is never sent by itself while a mic is on.
+	*/
+	setDraft(text, opts) {
+		const next = String(text ?? "").slice(0, MAX_CHAT);
+		this.pure = opts?.source ? dictatedDraft(this._draft, this.pure, next) : null;
+		this._draft = next;
+		this.settledLen = next.length;
+		this.offline = false;
+		const ta = this.els.input;
+		if (ta) {
+			ta.value = next;
+			this.fitInput();
+			ta.setSelectionRange?.(next.length, next.length);
+			ta.scrollTop = ta.scrollHeight;
+		}
+		this.renderPartial();
+		this.renderStatus();
+		this.renderAim();
+		this.arm();
+	}
+	/** A live transcript, shown dimmed after the draft and never committed (null: none). */
+	setPartial(text) {
+		this._partial = text ?? "";
+		this.renderPartial();
+		this.renderPlaceholder();
+		this.arm();
+	}
+	/** A mic is on: treated as focus (the log opens, the box is opaque). Attribute: mic-active. */
+	get micActive() {
+		return this._micActive;
+	}
+	set micActive(v) {
+		if (typeof this.toggleAttribute === "function") this.toggleAttribute("mic-active", !!v);
+		else this.applyMic(!!v);
+	}
+	/**
+	* Hold the person's draft: nothing goes out by itself (no debounce, no
+	* sentence-jump send), with no mic look. Enter and submit() still send. Attribute: hold.
+	*/
+	get hold() {
+		return this._hold;
+	}
+	set hold(v) {
+		if (typeof this.toggleAttribute === "function") this.toggleAttribute("hold", !!v);
+		else this.applyHold(!!v);
+	}
+	/**
+	* The host grants code on every page of this user (its hub widens Allow to
+	* "all"): the request says so, Allow sends pages "all", and no page ticks
+	* are shown. Attribute: all-pages.
+	*/
+	/**
+	* Show the menu's echo-cancellation row when a mic is in the box. Default
+	* true; false (attribute no-echo-toggle) hides it, for a host that decides
+	* the mic's processing itself.
+	*/
+	get echoToggle() {
+		return !this.hasAttribute("no-echo-toggle");
+	}
+	set echoToggle(v) {
+		if (typeof this.toggleAttribute === "function") this.toggleAttribute("no-echo-toggle", !v);
+		this.renderMenu();
+	}
+	get allPages() {
+		return this._allPages;
+	}
+	set allPages(v) {
+		if (typeof this.toggleAttribute === "function") this.toggleAttribute("all-pages", !!v);
+		else this.applyAllPages(!!v);
+	}
+	attributeChangedCallback(name) {
+		if (name === "mic-active") this.applyMic(this.hasAttribute("mic-active"));
+		else if (name === "hold") this.applyHold(this.hasAttribute("hold"));
+		else if (name === "all-pages") this.applyAllPages(this.hasAttribute("all-pages"));
+		else if (name === "no-echo-toggle") this.renderMenu();
+		else if (name === "collapsed-count") this.renderLog();
+		else this.renderActions();
+	}
+	applyAllPages(v) {
+		if (v === this._allPages) return;
+		this._allPages = v;
+		this.renderAsks();
+	}
+	applyHold(v) {
+		if (v === this._hold) return;
+		this._hold = v;
+		this.arm();
+	}
+	applyMic(v) {
+		if (v === this._micActive) return;
+		this._micActive = v;
+		this.renderLayout();
+		this.arm();
+	}
+	/** Per-device settings live under this prefix (attribute storage-key; default "liagent"). */
+	key(name) {
+		return `${this.getAttribute("storage-key") || "liagent"}:${name}`;
+	}
+	read(name) {
+		try {
+			return localStorage.getItem(this.key(name));
+		} catch {
+			return null;
+		}
+	}
+	write(name, v) {
+		try {
+			localStorage.setItem(this.key(name), v);
+		} catch {}
+	}
+	/** The speed setting under this box's storage key. */
+	rateStore = {
+		getItem: () => this.read("speech-rate"),
+		setItem: (_k, v) => this.write("speech-rate", v)
+	};
+	/** Remove settings an older version saved that mean nothing now (speak-rules.ts). */
+	dropRetired() {
+		for (const name of RETIRED_SETTINGS) try {
+			localStorage.removeItem(this.key(name));
+		} catch {}
+	}
+	/** Whether agent replies are read aloud on this device (on unless turned off). */
+	get speaking() {
+		return this.read("speak") !== "0";
+	}
+	/** How fast replies are read (1, 1.25, 1.5 or 2; per device, picked in the menu). */
+	get speechRate() {
+		return speechRate(this.rateStore);
+	}
+	/**
+	* Read a reply aloud, after any still being read (always while a mic is on):
+	* through `voice` if set, else speechSynthesis, in the language its script
+	* suggests (with a matching installed voice), at `speechRate`. `line`
+	* (the message's `quiet`) is checked first, with the page's visibility
+	* (src/speak-rules.ts), for both outputs.
+	*/
+	speak(text, id, line = {}) {
+		const why = silenceFor(line, { hidden: pageHidden() });
+		if (why) {
+			this.dispatchEvent(new CustomEvent("liagent-silent", { detail: {
+				id,
+				why
+			} }));
+			return;
+		}
+		if (!this.speaking && !this._micActive) return;
+		if (this.voice) return this.voice.speak(text, id);
+		const s = synth();
+		if (!s) return;
+		const u = new SpeechSynthesisUtterance(text);
+		u.lang = readingLang(this.voicePrefer, () => pickLang(text));
+		u.rate = this.speechRate;
+		const voice = voicePicker.pick(u.lang, this.voicePrefer);
+		if (voice) u.voice = voice;
+		s.speak(u);
+	}
+	stopSpeech(why) {
+		if (this.voice) this.voice.stop(why);
+		else cancelSpeech();
+	}
+	connectedCallback() {
+		document.addEventListener("pointerdown", this.outside, true);
+		document.addEventListener("keydown", this.escape, true);
+		addEventListener("resize", this.relayout);
+		addEventListener("orientationchange", this.relayout);
+		globalThis.visualViewport?.addEventListener("resize", this.relayout);
+		document.addEventListener("visibilitychange", this.pageHid);
+		addEventListener("dragenter", this.dragEnter, true);
+		addEventListener("dragleave", this.dragLeave, true);
+		addEventListener("drop", this.dragDone, true);
+		addEventListener("dragend", this.dragDone, true);
+		this.dropRetired();
+		if (this.root) {
+			this.loadTree();
+			return;
+		}
+		if (this.hasAttribute("collapsed")) this._defaultOpen = false;
+		const ph = this.getAttribute("placeholder");
+		if (ph) this._placeholder = ph;
+		const agentAv = this.getAttribute("agent-avatar");
+		if (agentAv && !this._agentAvatar) this._agentAvatar = agentAv;
+		const userAv = this.getAttribute("user-avatar");
+		if (userAv && !this._user.avatar) this._user.avatar = userAv;
+		const userName = this.getAttribute("user-name");
+		if (userName && !this._user.name) this._user.name = userName;
+		this._micActive = this.hasAttribute("mic-active");
+		this._hold = this.hasAttribute("hold");
+		if (this.hasAttribute("keep-scroll")) try {
+			const v = JSON.parse(this.read("scroll") ?? "null");
+			if (v && typeof v.id === "string" && Number.isFinite(v.dy)) this.restoreTo = v;
+		} catch {}
+		this._allPages = this.hasAttribute("all-pages");
+		const o = this.read("open");
+		this.open = o === null ? this._defaultOpen : o === "1";
+		this.wasOpen = this.open;
+		try {
+			const v = JSON.parse(this.read("pos") ?? "null");
+			if (v && Number.isFinite(v.x) && Number.isFinite(v.y)) this.pos = v;
+		} catch {}
+		synth()?.getVoices();
+		this.root = this.attachShadow({ mode: "open" });
+		this.build();
+		this.messagesChanged();
+		this.renderAll();
+		this.loadTree();
+	}
+	disconnectedCallback() {
+		clearTimeout(this.timer);
+		this.taps.cancel();
+		this.treeStop?.();
+		this.treeStop = void 0;
+		document.removeEventListener("pointerdown", this.outside, true);
+		document.removeEventListener("keydown", this.escape, true);
+		removeEventListener("resize", this.relayout);
+		removeEventListener("orientationchange", this.relayout);
+		globalThis.visualViewport?.removeEventListener("resize", this.relayout);
+		document.removeEventListener("visibilitychange", this.pageHid);
+		removeEventListener("dragenter", this.dragEnter, true);
+		removeEventListener("dragleave", this.dragLeave, true);
+		removeEventListener("drop", this.dragDone, true);
+		removeEventListener("dragend", this.dragDone, true);
+		this.dragging = 0;
+	}
+	/** Files can be added now: a host, the box open, the chat available. */
+	takesFiles() {
+		return !!this._files && this.open && !this._notice;
+	}
+	/**
+	* Files dragged into the window: the whole box takes the drop (its log is
+	* click-through otherwise), so a dropped file uploads instead of its name
+	* landing in the input. Ends on a drop, or on leaving the window.
+	*/
+	dragEnter = (e) => {
+		if (!this.takesFiles() || !dragHasFiles(e.dataTransfer)) return;
+		this.setDragging(true);
+	};
+	dragLeave = () => {
+		if (this.dragging) this.setDragging(this.dragging - 1 > 0, true);
+	};
+	dragDone = () => this.setDragging(false);
+	setDragging(on, leaving = false) {
+		this.dragging = on ? leaving ? this.dragging - 1 : this.dragging + 1 : 0;
+		const d = this.els.drop;
+		if (!d) return;
+		d.hidden = !this.dragging || !this.takesFiles();
+		d.textContent = this.ui.attachDrop;
+	}
+	/** Open the device's file picker (an upload action's `accept`). */
+	pickFiles(accept) {
+		const el = this.els.picker;
+		if (!el || !this._files) return;
+		el.accept = accept ?? "";
+		el.click();
+	}
+	/** Uploads finished: a held send goes now; files alone go after the usual pause. */
+	afterUpload() {
+		if (this.pendingFiles.busy()) return;
+		if (this.waitFiles) {
+			this.waitFiles = false;
+			this.submit();
+		} else if (this.pendingFiles.ready() && !this._draft.trim()) this.armFiles();
+	}
+	/** Files alone, no draft: they go out after the debounce, as a typed line would. */
+	armFiles() {
+		this.disarm();
+		if (this._micActive || this._partial || this.composing) return;
+		const bar = document.createElement("div");
+		bar.className = "drain";
+		bar.setAttribute("aria-hidden", "true");
+		bar.style.setProperty("--drain-ms", `${DEBOUNCE_MS}ms`);
+		this.els.bar?.prepend(bar);
+		this.timer = setTimeout(() => this.submit(), DEBOUNCE_MS);
+	}
+	/** Over the input: one chip per pending file, with its progress and an ×. */
+	renderFiles() {
+		const row = this.els.filerow;
+		if (!row) return;
+		const list = this.pendingFiles.get();
+		row.hidden = !list.length || !this.open || !this._files;
+		row.replaceChildren(...list.map((f) => this.pendingChip(f)));
+	}
+	pendingChip(f) {
+		const ui = this.ui;
+		const chip = document.createElement("div");
+		chip.className = "fchip";
+		chip.dataset.state = f.state;
+		if (f.state === "uploading") chip.title = ui.attachUploading;
+		if (f.thumb) {
+			const img = document.createElement("img");
+			img.className = "thumb";
+			img.alt = "";
+			img.src = f.thumb;
+			chip.append(img);
+		} else {
+			const b = document.createElement("span");
+			b.className = "thumb ext";
+			b.setAttribute("aria-hidden", "true");
+			b.textContent = fileBadge(f.name);
+			chip.append(b);
+		}
+		const lab = document.createElement("span");
+		lab.className = "lab";
+		const name = document.createElement("span");
+		name.textContent = f.name;
+		const note = document.createElement("span");
+		const bad = f.state === "failed" ? ui.attachFailed : f.state === "too-big" ? ui.attachTooBig : "";
+		note.className = bad ? "note bad" : "note";
+		note.textContent = bad || formatSize(f.size);
+		lab.append(name, note);
+		const x = document.createElement("button");
+		x.type = "button";
+		x.className = "x";
+		x.textContent = "×";
+		x.setAttribute("aria-label", ui.attachFileRemove);
+		x.addEventListener("pointerdown", keepFocus);
+		x.addEventListener("click", () => this.pendingFiles.remove(f.key));
+		chip.append(lab, x);
+		if (f.state === "uploading") {
+			const bar = document.createElement("span");
+			bar.className = "prog";
+			bar.setAttribute("aria-hidden", "true");
+			const pct = f.size ? Math.min(100, Math.round(f.sent / f.size * 100)) : 0;
+			bar.style.width = `${pct}%`;
+			chip.append(bar);
+		}
+		return chip;
+	}
+	/** The host's actions on one stored file, as small buttons. */
+	fileActions(r) {
+		let acts = [];
+		try {
+			acts = this._files?.actions?.(r) ?? [];
+		} catch {}
+		return acts.map((a) => {
+			const b = document.createElement("button");
+			b.type = "button";
+			b.className = "fact";
+			b.dataset.action = a.id;
+			b.textContent = a.label;
+			b.addEventListener("pointerdown", keepFocus);
+			b.addEventListener("click", (ev) => {
+				ev.stopPropagation();
+				try {
+					a.run();
+				} catch {}
+			});
+			return b;
+		});
+	}
+	/** Under a sent line: its images (inline) and files (links), from the host's URL, and the host's actions. */
+	sentFiles(refs) {
+		const out = document.createElement("span");
+		out.className = "sfiles";
+		for (const r of refs) {
+			let href = "";
+			try {
+				href = this._files?.url(r) ?? "";
+			} catch {}
+			const ok = /^(https?:\/\/|\/(?!\/)|blob:)/i.test(href);
+			const one = document.createElement("span");
+			one.className = "sfile";
+			if (ok && isInlineImage(r.type)) {
+				const a = document.createElement("a");
+				a.href = href;
+				a.target = "_blank";
+				a.rel = "noopener noreferrer";
+				a.title = r.name;
+				const img = document.createElement("img");
+				img.src = href;
+				img.alt = r.name;
+				img.loading = "lazy";
+				a.append(img);
+				one.append(a);
+			} else {
+				const chip = document.createElement(ok ? "a" : "span");
+				chip.className = "fname";
+				if (ok) {
+					chip.href = href;
+					chip.rel = "noopener noreferrer";
+					chip.download = r.name;
+				}
+				chip.setAttribute("aria-label", `${this.ui.attachFile}: ${r.name}`);
+				const n = document.createElement("span");
+				n.className = "n";
+				n.textContent = r.name;
+				const z = document.createElement("span");
+				z.className = "z";
+				z.textContent = formatSize(r.size);
+				chip.append(n, z);
+				one.append(chip);
+			}
+			one.append(...this.fileActions(r));
+			out.append(one);
+		}
+		return out;
+	}
+	/** Open the + menu's Files: the stored files, loaded again each time (no polling). */
+	openFileList() {
+		this.fileList = {};
+		this.setPanel("files");
+		const files = this._files;
+		files?.list?.().then((data) => {
+			if (this._files !== files || this.panel !== "files") return;
+			this.fileList = { data };
+			this.renderFileList();
+		}, () => {
+			if (this._files !== files || this.panel !== "files") return;
+			this.fileList = { failed: true };
+			this.renderFileList();
+		});
+	}
+	deleteFile(id) {
+		const files = this._files;
+		this.fileList.asking = void 0;
+		this.renderFileList();
+		files?.remove?.(id).then(() => {
+			const d = this.fileList.data;
+			if (!d) return;
+			const gone = d.items.find((x) => x.id === id);
+			const usage = d.usage && gone && {
+				...d.usage,
+				bytes: Math.max(0, d.usage.bytes - gone.size),
+				items: Math.max(0, d.usage.items - 1)
+			};
+			this.fileList.data = {
+				items: d.items.filter((x) => x.id !== id),
+				...usage ? { usage } : d.usage ? { usage: d.usage } : {}
+			};
+			this.renderFileList();
+		}, () => {
+			this.fileList.failed = true;
+			this.renderFileList();
+		});
+	}
+	/** The + menu's Files panel: usage, rows (download, host actions, a confirmed Delete), ×. */
+	renderFileList() {
+		const p = this.els.fpanel;
+		if (!p) return;
+		const files = this._files;
+		p.hidden = this.panel !== "files" || !files?.list;
+		if (p.hidden || !files) return p.replaceChildren();
+		const ui = this.ui;
+		p.setAttribute("aria-label", ui.files);
+		const head = document.createElement("div");
+		head.className = "fhead";
+		const t = document.createElement("span");
+		t.textContent = ui.files;
+		const x = document.createElement("button");
+		x.type = "button";
+		x.className = "x";
+		x.textContent = "×";
+		x.setAttribute("aria-label", ui.filesClose);
+		x.addEventListener("click", () => this.setPanel("none"));
+		head.append(t, x);
+		const nodes = [head];
+		const { data, failed, asking } = this.fileList;
+		const line = (cls, text) => {
+			const d = document.createElement("div");
+			d.className = cls;
+			d.textContent = text;
+			nodes.push(d);
+		};
+		if (data?.usage) {
+			const u = data.usage;
+			line("fusage", (u.quota ? ui.filesUsageQuota : ui.filesUsage).replace("{size}", formatSize(u.bytes)).replace("{quota}", formatSize(u.quota ?? 0)).replace("{n}", String(u.items)));
+		}
+		if (failed) line("fline bad", ui.filesFailed);
+		if (data && !data.items.length) line("fline", ui.filesEmpty);
+		const body = document.createElement("div");
+		body.className = "frows";
+		for (const r of data?.items ?? []) {
+			const row = document.createElement("div");
+			row.className = "frow";
+			row.dataset.id = r.id;
+			if (asking === r.id) {
+				row.classList.add("ask");
+				const q = document.createElement("span");
+				q.className = "q";
+				q.textContent = ui.filesDeleteConfirm;
+				const yes = document.createElement("button");
+				yes.type = "button";
+				yes.className = "fact del yes";
+				yes.textContent = ui.filesDelete;
+				yes.addEventListener("click", () => this.deleteFile(r.id));
+				const no = document.createElement("button");
+				no.type = "button";
+				no.className = "fact";
+				no.textContent = ui.filesKeep;
+				no.addEventListener("click", () => {
+					this.fileList.asking = void 0;
+					this.renderFileList();
+				});
+				row.append(q, yes, no);
+			} else {
+				let href = "";
+				try {
+					href = files.url(r);
+				} catch {}
+				const ok = /^(https?:\/\/|\/(?!\/)|blob:)/i.test(href);
+				const a = document.createElement(ok ? "a" : "span");
+				a.className = "fwhat";
+				if (ok) {
+					a.href = href;
+					a.rel = "noopener noreferrer";
+					a.download = r.name;
+				}
+				const n = document.createElement("span");
+				n.textContent = r.name;
+				const meta = document.createElement("span");
+				meta.className = "meta";
+				meta.textContent = [
+					formatSize(r.size),
+					new Date(r.at).toLocaleString(),
+					r.processedAt ? ui.filesProcessed : ""
+				].filter(Boolean).join(" · ");
+				a.append(n, meta);
+				row.append(a, ...this.fileActions(r));
+				if (files.remove) {
+					const del = document.createElement("button");
+					del.type = "button";
+					del.className = "fact del";
+					del.textContent = ui.filesDelete;
+					del.addEventListener("click", () => {
+						this.fileList.asking = r.id;
+						this.renderFileList();
+					});
+					row.append(del);
+				}
+			}
+			body.append(row);
+		}
+		nodes.push(body);
+		p.replaceChildren(...nodes);
+	}
+	/** The page hid (another tab, the app in the background, the screen locked): stop reading. */
+	pageHid = () => {
+		if (pageHidden()) this.stopSpeech("hidden");
+	};
+	/** A tap anywhere outside the menu and the mark closes the menu. */
+	outside = (e) => {
+		if (this.panel === "none" || this.panel === "tree") return;
+		const path = e.composedPath();
+		if (this.panel === "presence") {
+			if (path.includes(this.els.plist) || path.includes(this.els.presence)) return;
+		} else if (this.panel === "files") {
+			if (path.includes(this.els.fpanel) || path.includes(this.els.plus)) return;
+		} else if (this.panel === "plus") {
+			if (path.includes(this.els.amenu) || path.includes(this.els.plus)) return;
+		} else if (path.includes(this.els.menu) || path.includes(this.els.mark)) return;
+		this.setPanel("none");
+	};
+	/** Escape closes the open panel (caught first, so a mic's own Escape never sees it). */
+	escape = (e) => {
+		if (e.key !== "Escape" || this.panel === "none") return;
+		e.stopPropagation();
+		this.setPanel("none");
+	};
+	/** A resize (window, rotation, the visual viewport): the bar stays on screen, the float box re-placed. */
+	relayout = () => {
+		this.fit();
+		this.placeFloat();
+	};
+	get ui() {
+		return {
+			...uiStrings(),
+			...this._strings
+		};
+	}
+	/** A string with its {placeholders} filled. */
+	tr(k, v = {}) {
+		return this.ui[k].replace(/\{(\w+)\}/g, (m, n) => n in v ? String(v[n]) : m);
+	}
+	get treeText() {
+		return {
+			...TREE_STRINGS_EN,
+			...treeDefaults(),
+			...this.treeStrings
+		};
+	}
+	build() {
+		const r = this.root;
+		let style = "";
+		try {
+			const sheet = new CSSStyleSheet();
+			sheet.replaceSync(CSS);
+			r.adoptedStyleSheets = [sheet];
+		} catch {
+			style = `<style>${CSS}</style>`;
+		}
+		r.innerHTML = `${style}
+<section class="box halo" id="box" aria-label="${this.ui.chatWithAgent}">
+  <div class="column" id="column">
+    <ol class="log" id="log"></ol>
+  </div>
+  <div class="warn" id="warn" role="alert" hidden></div>
+  <div class="asks" id="asks" aria-label="Agent connections"></div>
+  <div class="attrow" id="att" hidden></div>
+  <div class="filerow" id="filerow" hidden></div>
+  <div class="rowbox" id="rowbox">
+    <div class="aim" id="aim" hidden></div>
+    <div class="presence" id="presence" part="presence" hidden></div>
+    <div class="menu plist" id="plist" role="menu" hidden></div>
+    <div class="bar" id="bar" part="bar">
+      <button type="button" class="tap mark" id="mark" title="${this.ui.markHint}">${ICONS.mark}<span class="dot" id="dot"></span></button>
+      <div class="cell" id="lead"></div>
+      <button type="button" class="tap treebtn" id="treebtn" aria-expanded="false" title="${this.ui.treeHint}">${ICONS.tree}<span class="evals" id="evals" aria-hidden="true" hidden></span><span class="thint" id="thint" role="status" hidden></span></button>
+      <button type="button" class="tap plus" id="plus" aria-haspopup="menu" aria-expanded="false" hidden>${ICONS.plus}</button>
+      <div class="slot" id="slot">
+        <div class="mirror" id="mirror" aria-hidden="true" hidden><span class="ghost" id="ghost"></span><span class="partial" id="partial"></span></div>
+        <textarea id="input" rows="1" maxlength="${MAX_CHAT}" aria-label="${this.ui.messageAgentLabel}"></textarea>
+        <p class="notice" id="notice" role="status" hidden></p>
+        <span class="spin" id="spin" role="status" hidden></span>
+      </div>
+      <div class="cell" id="trail"></div>
+      <div class="mic" id="mic" hidden><slot name="mic" id="micslot"></slot></div>
+      <span class="unread" id="unread" hidden></span>
+    </div>
+    <span aria-hidden="true"></span>
+    <div class="floatbox" id="floatbox" hidden>
+      <div class="ftree" id="ftree"></div>
+      <ol class="floats" id="floats" aria-live="polite"></ol>
+      <ul class="frontier" id="frontier"></ul>
+    </div>
+    <div class="menu" id="menu" role="menu" hidden></div>
+    <div class="amenu" id="amenu" role="menu" hidden></div>
+    <div class="fpanel" id="fpanel" role="dialog" hidden></div>
+  </div>
+  <div class="drop" id="drop" hidden></div>
+  <input type="file" id="picker" multiple hidden />
+</section>`;
+		for (const el of r.querySelectorAll("[id]")) this.els[el.id] = el;
+		const { box, bar, mark, treebtn, column, floats, rowbox } = this.els;
+		const ta = this.els.input;
+		const micslot = this.els.micslot;
+		const panel = document.createElement("div");
+		panel.className = "treepanel";
+		panel.id = "tree";
+		panel.setAttribute("role", "region");
+		const x = document.createElement("button");
+		x.type = "button";
+		x.className = "x tap";
+		x.textContent = "✕";
+		x.addEventListener("mousedown", (e) => e.preventDefault());
+		x.addEventListener("click", () => this.setPanel("none"));
+		const body = document.createElement("div");
+		body.className = "tbody";
+		body.addEventListener("scroll", () => this.treeFade());
+		panel.append(x, body);
+		this.els.tree = panel;
+		this.els.tbody = body;
+		this.els.tclose = x;
+		box.addEventListener("pointerdown", unlockSpeech);
+		box.addEventListener("keydown", unlockSpeech);
+		this.dragHandle(mark, () => true);
+		mark.addEventListener("pointerdown", () => this.setHolding(true));
+		for (const ev of ["pointerup", "pointercancel"]) mark.addEventListener(ev, () => this.setHolding(false));
+		mark.addEventListener("click", () => !this.markDrag.wasDrag() && this.taps.tap());
+		this.dragHandle(bar, (e) => e.target === bar);
+		this.treeGestures(treebtn);
+		column.addEventListener("scroll", () => {
+			this.onColumnScroll();
+			if (Date.now() - this.userScrollAt < USER_SCROLL_MS) this.scrolledByUser();
+		});
+		column.addEventListener("mousedown", (e) => {
+			if (e.target?.closest?.("a[href]")) e.preventDefault();
+		});
+		bar.addEventListener("wheel", (e) => {
+			const ta = this.els.input;
+			if (ta && e.composedPath().includes(ta) && wheelScrolls(ta, e.deltaY)) return;
+			if (!wheelScrolls(column, e.deltaY)) return;
+			e.preventDefault();
+			column.scrollTop += e.deltaY;
+			userScroll();
+		}, { passive: false });
+		const userScroll = () => {
+			this.userScrollAt = Date.now();
+			this.ownPin = false;
+		};
+		column.addEventListener("wheel", userScroll, { passive: true });
+		column.addEventListener("touchmove", userScroll, { passive: true });
+		column.addEventListener("pointerdown", userScroll, { passive: true });
+		column.addEventListener("keydown", userScroll, { passive: true });
+		column.addEventListener("transitionend", (e) => {
+			if (e.target !== column) return;
+			if (!this.wide()) this.toEnd();
+			this.onColumnScroll();
+		});
+		rowbox.addEventListener("transitionend", (e) => {
+			if (e.target !== rowbox) return;
+			this.fitInput();
+			this.placeFloat();
+		});
+		floats.addEventListener("pointerenter", () => this.holdFloats(true));
+		floats.addEventListener("pointerleave", () => this.holdFloats(false));
+		floats.addEventListener("pointercancel", () => this.holdFloats(false));
+		floats.addEventListener("touchstart", () => this.holdFloats(true), { passive: true });
+		floats.addEventListener("touchend", () => this.holdFloats(false), { passive: true });
+		micslot.addEventListener("slotchange", () => this.renderActions());
+		const plus = this.els.plus;
+		plus.addEventListener("pointerdown", keepFocus);
+		plus.addEventListener("click", () => this.setPanel(this.panel === "plus" ? "none" : "plus"));
+		this.els.amenu.addEventListener("pointerdown", keepFocus);
+		this.els.fpanel.addEventListener("pointerdown", keepFocus);
+		const picker = this.els.picker;
+		picker.addEventListener("change", () => {
+			this.addFiles(Array.from(picker.files ?? []));
+			picker.value = "";
+		});
+		ta.addEventListener("paste", (e) => {
+			if (!this._files) return;
+			const got = filesFrom(e.clipboardData);
+			if (!got.length) return;
+			e.preventDefault();
+			this.addFiles(got);
+		});
+		box.addEventListener("dragover", (e) => {
+			if (!this.takesFiles() || !dragHasFiles(e.dataTransfer)) return;
+			e.preventDefault();
+			if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+		});
+		box.addEventListener("drop", (e) => {
+			this.setDragging(false);
+			if (!this.takesFiles()) return;
+			const got = filesFrom(e.dataTransfer);
+			if (!got.length) return;
+			e.preventDefault();
+			this.addFiles(got);
+		});
+		this.pendingFiles.subscribe(() => {
+			this.renderFiles();
+			this.afterUpload();
+		});
+		if (typeof ResizeObserver !== "undefined") {
+			let width = ta.clientWidth;
+			this.ro = new ResizeObserver((entries) => {
+				for (const e of entries) if (e.target === ta) {
+					if (ta.clientWidth === width) continue;
+					width = ta.clientWidth;
+					this.fitInput();
+				} else if (e.target === column || e.target === this.els.log) if (this.restoreTo !== void 0) this.tryRestore();
+				else this.repin();
+				else this.placeFloat();
+			});
+			this.ro.observe(ta);
+			this.ro.observe(this.els.floatbox);
+			this.ro.observe(column);
+			this.ro.observe(this.els.log);
+		}
+		ta.addEventListener("input", () => {
+			this._draft = ta.value;
+			this.offline = false;
+			this.stopSpeech("typing");
+			this.fitInput();
+			this.renderPartial();
+			this.arm();
+			this.renderStatus();
+			this.renderAim();
+		});
+		ta.addEventListener("scroll", () => this.els.mirror.scrollTop = ta.scrollTop);
+		const refit = () => {
+			if (this.collapsedCount && this.atEnd) requestAnimationFrame(() => this.toEnd());
+		};
+		this.root.addEventListener("focusin", refit);
+		this.root.addEventListener("focusout", refit);
+		ta.addEventListener("focus", () => {
+			this.typing = true;
+			this.renderLayout();
+			requestAnimationFrame(() => this.toEnd());
+		});
+		ta.addEventListener("blur", () => {
+			this.typing = false;
+			this.renderLayout();
+		});
+		ta.addEventListener("compositionstart", () => {
+			this.composing = true;
+			this.disarm();
+		});
+		ta.addEventListener("compositionend", () => {
+			this.composing = false;
+			this.arm();
+		});
+		ta.addEventListener("beforeinput", (e) => {
+			const ie = e;
+			if (lineBreakSends(ie.inputType, {
+				composing: this.composing,
+				isComposing: ie.isComposing,
+				shiftEnter: this.shiftEnter
+			})) {
+				e.preventDefault();
+				const first = this.completions()[0];
+				if (first) return this.pick(first);
+				this.submit();
+			}
+		});
+		ta.addEventListener("keydown", (e) => {
+			this.shiftEnter = e.key === "Enter" && e.shiftKey;
+			const first = this.completions()[0];
+			if ((e.key === "Tab" || e.key === "Enter") && !e.shiftKey && first) {
+				e.preventDefault();
+				return this.pick(first);
+			}
+			if (e.key === "Backspace" && !this._draft && this._target !== ROOT_NODE) return this.setTarget(ROOT_NODE);
+			if (!enterSends(e, this.composing)) return;
+			e.preventDefault();
+			this.submit();
+		});
+		this.swipeScrollsLog(ta);
+	}
+	/**
+	* The log is click-through, so it can't be scrolled where it is: a wheel,
+	* trackpad or touch scroll over the input scrolls it instead, empty or not.
+	* Text that overflows the input scrolls first, and at its end the rest of
+	* the gesture goes on to the log (src/scroll-handoff.ts). A move the input
+	* scrolls itself is never cancelled, and a tap still places the caret.
+	*/
+	swipeScrollsLog(el) {
+		const toLog = (d) => {
+			if (!d) return;
+			this.els.column.scrollTop += d;
+			this.userScrollAt = Date.now();
+		};
+		el.addEventListener("wheel", (e) => {
+			if (e.ctrlKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+			const { inputDelta, logDelta } = splitScroll(el, wheelPixels(e.deltaY, e.deltaMode, this.els.column.clientHeight));
+			if (!logDelta) return;
+			e.preventDefault();
+			if (inputDelta) el.scrollTop += inputDelta;
+			toLog(logDelta);
+		}, { passive: false });
+		const swipe = createSwipeHandoff();
+		el.addEventListener("touchstart", (e) => swipe.start(e.touches[0].clientY), { passive: true });
+		el.addEventListener("touchmove", (e) => {
+			if (e.touches.length !== 1) return;
+			const step = swipe.move(el, e.touches[0].clientY, e.cancelable);
+			if (!step) return;
+			if (step.prevent) e.preventDefault();
+			if (step.inputDelta) el.scrollTop += step.inputDelta;
+			toLog(step.logDelta);
+		}, { passive: false });
+	}
+	/**
+	* Drag the box by `el` anywhere on screen: an offset from its bottom-right
+	* home, the bar kept on screen (up to the notch) and remembered. A press
+	* that moves under 5 px is still a click.
+	*/
+	dragHandle(el, accept) {
+		let d = null;
+		el.addEventListener("pointerdown", (e) => {
+			if (!accept(e)) return;
+			d = {
+				px: e.clientX,
+				py: e.clientY,
+				x: this.pos.x,
+				y: this.pos.y,
+				moved: false
+			};
+			this.markDrag.down();
+			el.setPointerCapture?.(e.pointerId);
+		});
+		el.addEventListener("pointermove", (e) => {
+			if (!d) return;
+			const dx = e.clientX - d.px;
+			const dy = e.clientY - d.py;
+			if (!d.moved && Math.hypot(dx, dy) < 5) return;
+			d.moved = true;
+			const bar = this.els.bar.getBoundingClientRect();
+			const left = bar.left - (this.pos.x - d.x);
+			const top = bar.top - (this.pos.y - d.y);
+			const safeTop = safeInsets().top;
+			this.pos = {
+				x: d.x + Math.max(-left, Math.min(innerWidth - bar.width - left, dx)),
+				y: d.y + Math.max(safeTop - top, Math.min(innerHeight - bar.height - top, dy))
+			};
+			this.style.transform = `translate(${this.pos.x}px, ${this.pos.y}px)`;
+		});
+		const end = () => {
+			const moved = d?.moved;
+			d = null;
+			this.setHolding(false);
+			if (!moved) return;
+			this.markDrag.dragEnded();
+			this.write("pos", JSON.stringify(this.pos));
+			this.placeFloat();
+		};
+		el.addEventListener("pointerup", end);
+		el.addEventListener("pointercancel", () => {
+			d = null;
+			this.setHolding(false);
+		});
+	}
+	setHolding(v) {
+		if (this.holding === v) return;
+		this.holding = v;
+		this.renderPlaceholder();
+	}
+	/**
+	* Bring the bar back on screen (after expanding where the minimized bar
+	* was, or on a smaller screen). Expanded, the bar spans the box, so the
+	* box's own edges count.
+	*/
+	fit() {
+		const bar = this.els.bar?.getBoundingClientRect();
+		const box = this.els.box?.getBoundingClientRect();
+		if (!bar || !box || !bar.width) return;
+		const row = this.open ? box : bar;
+		const top = safeInsets().top;
+		const dx = row.left < 0 ? -row.left : row.right > innerWidth ? innerWidth - row.right : 0;
+		const dy = bar.top < top ? top - bar.top : bar.bottom > innerHeight ? innerHeight - bar.bottom : 0;
+		if (!dx && !dy) return;
+		this.pos = {
+			x: this.pos.x + dx,
+			y: this.pos.y + dy
+		};
+		this.style.transform = `translate(${this.pos.x}px, ${this.pos.y}px)`;
+		this.write("pos", JSON.stringify(this.pos));
+	}
+	/**
+	* The tree button: a tap opens or closes the tree; a horizontal drag (axis
+	* locked after 8 px) moves the focused node through its detents — right
+	* opens it a level per cell, left folds it (src/tree-nav.ts) — with a live
+	* preview, resisting past a limit, committed on release. A vertical drag
+	* does nothing. Arrow keys on it move in the open tree.
+	*/
+	treeGestures(b) {
+		b.addEventListener("mousedown", (e) => e.preventDefault());
+		b.addEventListener("pointerdown", (e) => {
+			this.treeAxis.down(e.clientX, e.clientY);
+			this.treeDragged.down();
+			this.treePress = {
+				cells: 0,
+				limitAt: null
+			};
+			b.setPointerCapture?.(e.pointerId);
+		});
+		b.addEventListener("pointermove", (e) => {
+			const was = this.treeAxis.axis();
+			const m = this.treeAxis.move(e.clientX, e.clientY);
+			if (!m || m.axis !== "x" || !this._treeSource) return;
+			if (!was) {
+				if (this.panel !== "tree") this.setPanel("tree");
+				this.nav = treeNav(this.navIx.ix, this.nav, { type: "dragStart" });
+			}
+			const p = this.treePress;
+			p.cells = dragCells(m.dx, p.cells);
+			const next = treeNav(this.navIx.ix, this.nav, {
+				type: "dragMove",
+				cells: p.cells
+			});
+			p.limitAt = next.atLimit ? p.limitAt ?? p.cells - Math.sign(p.cells) : null;
+			this.setNav(next);
+			this.showTreeHint(m.dx, p.limitAt);
+		});
+		b.addEventListener("pointerup", () => {
+			const axis = this.treeAxis.up();
+			if (!axis) return;
+			this.treeDragged.dragEnded();
+			if (axis === "x") this.navTo({ type: "dragEnd" });
+			this.els.thint.hidden = true;
+		});
+		b.addEventListener("pointercancel", () => {
+			if (this.treeAxis.up() === "x") this.navTo({ type: "dragCancel" });
+			this.els.thint.hidden = true;
+		});
+		b.addEventListener("click", () => {
+			if (this.treeDragged.wasDrag()) return;
+			this.setPanel(this.panel === "tree" ? "none" : "tree");
+		});
+		b.addEventListener("keydown", (e) => {
+			if (this.panel !== "tree" || !e.key.startsWith("Arrow")) return;
+			e.preventDefault();
+			this.navTo({
+				type: "key",
+				key: e.key
+			});
+		});
+	}
+	/** While dragging: the focused node and the depth it would open to, following the finger. */
+	showTreeHint(dx, limitAt) {
+		const hint = this.els.thint;
+		const id = this.nav.focusId;
+		const node = id === null ? void 0 : this.navIx.byId.get(id);
+		const depth = id === null ? 0 : this.nav.expanded[id] ?? 0;
+		const max = id === null ? 0 : maxDetent(this.navIx.ix, id);
+		hint.textContent = node ? `${node.title} · ${depth}/${max}` : "—";
+		hint.style.transform = `translateX(${Math.round(dragOffset(dx, limitAt ?? void 0) * .25)}px)`;
+		hint.hidden = false;
+	}
+	/** (Re)load the tree: once for a URL or function, a subscription for a feed. Never polls. */
+	loadTree() {
+		this.treeStop?.();
+		this.treeStop = void 0;
+		const src = this._treeSource;
+		if (!src) {
+			this.treeRoot = null;
+			this.treeError = "";
+			this.setRoot(null);
+			return;
+		}
+		if (!this.isConnected || !this.root) return;
+		this.treeStop = watchTree(src, { repo: this.treeRepo }, (root) => {
+			this.treeError = "";
+			this.setRoot(root);
+		}, (e) => {
+			this.treeError = e instanceof Error ? e.message : String(e);
+			this.renderTree();
+		});
+	}
+	setRoot(root) {
+		this.treeRoot = root;
+		this.navIx = navIndexOf(root);
+		const f = this.nav.focusId;
+		if (f === null || !this.navIx.ix.parent.has(f)) this.nav = initialNav(this.navIx.ix);
+		this.renderTree();
+		this.renderFrontier();
+	}
+	setNav(next) {
+		if (next === this.nav) return;
+		this.nav = next;
+		this.renderTree();
+	}
+	/**
+	* One nav step. After it, an expand brings the focused node and its new
+	* children into view (unless the user is scrolling); a fold keeps the
+	* focused row where it was.
+	*/
+	navTo(ev) {
+		const scroller = this.open ? this.els.column : this.els.tbody;
+		const rows = () => this.els.tbody.querySelectorAll("[data-id]");
+		const tops = /* @__PURE__ */ new Map();
+		for (const r of rows()) tops.set(r.dataset.id, r.getBoundingClientRect().top);
+		const sum = (e) => Object.values(e).reduce((a, b) => a + b, 0);
+		const prev = this.nav;
+		const next = treeNav(this.navIx.ix, prev, ev);
+		this.setNav(next);
+		const f = next.focusId;
+		if (f === null) return;
+		const row = [...rows()].find((r) => r.dataset.id === f);
+		if (!row) return;
+		if (sum(next.expanded) > sum(prev.expanded)) {
+			if (Date.now() - this.userScrollAt < 600) return;
+			const last = [...rows()].filter((r) => r.dataset.id.startsWith(`${f}.`)).at(-1) ?? row;
+			const top = row.getBoundingClientRect().top;
+			const bottom = last.getBoundingClientRect().bottom;
+			const box = scroller.getBoundingClientRect();
+			if (bottom > box.bottom) scroller.scrollTop += Math.min(bottom - box.bottom, top - box.top);
+			else if (top < box.top) scroller.scrollTop -= box.top - top;
+		} else {
+			const was = tops.get(f);
+			if (was !== void 0) scroller.scrollTop += row.getBoundingClientRect().top - was;
+		}
+	}
+	renderTree() {
+		if (!this.root) return;
+		const body = this.els.tbody;
+		const t = this.treeText;
+		body.replaceChildren(this._treeSource ? renderTreeChips({
+			root: this.treeRoot,
+			nav: this.nav,
+			ix: this.navIx.ix,
+			byId: this.navIx.byId,
+			onNav: (ev) => this.navTo(ev),
+			status: this.treeError ? `${t.failed} (${this.treeError})` : this.treeRoot ? void 0 : t.loading,
+			empty: t.empty,
+			label: this.ui.stateTree,
+			needsYou: this.ui.needsYou
+		}) : Object.assign(document.createElement("p"), {
+			className: "chips status",
+			textContent: this.ui.noTreeSource
+		}));
+		this.treeFade();
+	}
+	/** The floating tree overflows (or is scrolled): its top edge fades, as the log's. */
+	treeFade() {
+		const b = this.els.tbody;
+		if (b) b.classList.toggle("fade", b.scrollHeight > b.clientHeight + 1 || b.scrollTop > 0);
+	}
+	disarm() {
+		clearTimeout(this.timer);
+		this.els.bar?.querySelector(".drain")?.remove();
+	}
+	arm() {
+		this.disarm();
+		if (parseAddress(this._draft)?.complete === false) return;
+		const raw = afterChange(this._draft, this.settledLen, this.composing);
+		if (!this.composing) this.settledLen = this._draft.length;
+		const next = autoSend(raw, {
+			mic: this._micActive,
+			partial: !!this._partial,
+			hold: this._hold
+		});
+		if (next === "send") return void this.submit();
+		if (next === "idle") return;
+		const bar = document.createElement("div");
+		bar.className = "drain";
+		bar.setAttribute("aria-hidden", "true");
+		bar.style.setProperty("--drain-ms", `${DEBOUNCE_MS}ms`);
+		this.els.bar.prepend(bar);
+		this.timer = setTimeout(() => this.submit(), DEBOUNCE_MS);
+	}
+	/**
+	* Send the draft now, as Enter would; true if it went out. Kept (and the
+	* status says so) if it could not.
+	*/
+	submit() {
+		this.disarm();
+		let text = this._draft.trim();
+		const addr = parseAddress(text);
+		if (addr) {
+			if (!addr.complete) return false;
+			this.setTarget(addr.to);
+			text = addr.text;
+			if (!text) {
+				this.clearDraft();
+				return false;
+			}
+		}
+		if (this.pendingFiles.busy()) {
+			this.waitFiles = true;
+			return false;
+		}
+		const stored = this.pendingFiles.get().filter((p) => p.state === "done" && p.ref);
+		if (!text && stored.length) text = stored.map((p) => p.name).join(", ").slice(0, MAX_CHAT);
+		if (!text) return false;
+		const to = this._target === ROOT_NODE ? void 0 : this._target;
+		const source = draftSource(this._draft, this.pure);
+		const context = this._attached ?? void 0;
+		const attachments = stored.map((p) => p.ref);
+		const before = beforeSendEvent({
+			text,
+			to,
+			source,
+			context,
+			attachments
+		});
+		if (!this.dispatchEvent(before)) return false;
+		const ctx = cleanCtx(before.detail.extra);
+		const opts = source || context || attachments.length || ctx ? {
+			...source ? { source } : {},
+			...context ? { context } : {},
+			...attachments.length ? { attachments } : {},
+			...ctx ? { ctx } : {}
+		} : void 0;
+		if (!this.onSend?.(text, to, opts)) {
+			this.offline = true;
+			this.renderStatus();
+			return false;
+		}
+		this.offline = false;
+		if (this.pendingFiles.get().length) this.pendingFiles.take();
+		if (context) {
+			for (const a of this._actions) if (this.attachedBy.has(a.id)) a.sent?.();
+			this.attach(null);
+		}
+		this.clearDraft();
+		return true;
+	}
+	clearDraft() {
+		this._draft = "";
+		this.pure = null;
+		this.settledLen = 0;
+		const ta = this.els.input;
+		if (ta) ta.value = "";
+		this.fitInput();
+		this.renderPartial();
+		this.renderStatus();
+		this.renderAim();
+	}
+	/**
+	* The input grows with its text up to INPUT_MAX_PX, then scrolls inside
+	* itself. Empty, it is one line (nothing measured: a placeholder measured
+	* in a narrow slot wraps to several lines).
+	*/
+	fitInput() {
+		const el = this.els.input;
+		if (!el) return;
+		el.style.height = "";
+		if (!el.value || el.clientWidth < 40) return;
+		el.style.height = "auto";
+		const border = el.offsetHeight - el.clientHeight;
+		el.style.height = `${Math.min(el.scrollHeight + border, INPUT_MAX_PX)}px`;
+	}
+	/** The draft's "@/…" while it is typed: the listening nodes under it. */
+	completions() {
+		const a = /^@\/\S*(?:\s*›\s*\S*)*$/.test(this._draft) ? parseAddress(this._draft) : null;
+		return a && !a.complete ? completeNode(this._draft, this._nodes) : [];
+	}
+	pick(n) {
+		this.setTarget(n);
+		this.clearDraft();
+		this.els.input.focus();
+	}
+	renderPlaceholder() {
+		const ta = this.els.input;
+		if (!ta) return;
+		ta.placeholder = this.holding ? this.ui.dragHint : this._partial ? "" : this._target !== ROOT_NODE ? this.tr("messageNode", { node: pathLabel(this._target) }) : this._placeholder || (this._live && !this._listeners ? this.ui.agentOfflineWaits : this.ui.messageAgent);
+	}
+	/** The live transcript: a mirror of the draft, invisible, then the partial text dimmed. */
+	renderPartial() {
+		const mirror = this.els.mirror;
+		if (!mirror) return;
+		const tail = partialTail(this._draft, this._partial);
+		mirror.hidden = !tail;
+		this.els.ghost.textContent = tail ? this._draft : "";
+		this.els.partial.textContent = tail;
+		mirror.scrollTop = this.els.input.scrollTop;
+	}
+	/** The target chip (× back to the main thread) and the "@/…" completions. */
+	renderAim() {
+		const aim = this.els.aim;
+		if (!aim) return;
+		aim.replaceChildren();
+		const list = this.completions();
+		const typed = parseAddress(this._draft)?.complete ? parseAddress(this._draft) : null;
+		const shown = typed ? typed.to : this._target;
+		if (list.length) {
+			const ul = document.createElement("ul");
+			ul.className = "nodes";
+			ul.setAttribute("role", "listbox");
+			ul.setAttribute("aria-label", this.ui.nodesLabel);
+			for (const n of list) {
+				const li = document.createElement("li");
+				li.setAttribute("role", "option");
+				const b = document.createElement("button");
+				b.type = "button";
+				b.textContent = pathLabel(n);
+				b.addEventListener("pointerdown", (e) => e.preventDefault());
+				b.addEventListener("click", () => this.pick(n));
+				li.append(b);
+				ul.append(li);
+			}
+			aim.append(ul);
+		}
+		if (shown !== ROOT_NODE) {
+			const chip = document.createElement("span");
+			chip.className = typed ? "target preview" : "target";
+			chip.dataset.node = shown;
+			const border = lineNode({
+				from: "owner",
+				to: shown
+			})?.border;
+			if (border) chip.style.setProperty("--node", border);
+			const label = document.createElement("span");
+			label.textContent = `→ ${pathLabel(shown)}`;
+			chip.append(label);
+			if (!typed) {
+				const x = document.createElement("button");
+				x.type = "button";
+				x.textContent = "×";
+				x.setAttribute("aria-label", this.ui.toMainThread);
+				x.addEventListener("pointerdown", (e) => e.preventDefault());
+				x.addEventListener("click", () => this.setTarget(ROOT_NODE));
+				chip.append(x);
+			}
+			aim.append(chip);
+		}
+		aim.hidden = !this.open || !aim.childElementCount;
+	}
+	/** One small avatar: the picture (checked again), or an initial / lane badge on its colour. */
+	presenceAvatar(m) {
+		const el = document.createElement("span");
+		el.className = `pav ${m.kind}`;
+		const badge = () => {
+			const c = avatarColors(`${m.kind}:${m.lane || m.id}`);
+			el.replaceChildren();
+			el.textContent = badgeText(m);
+			el.style.setProperty("--pav-bg", c.bg);
+			el.style.setProperty("--pav-fg", c.fg);
+		};
+		const src = cleanAvatarUrl(m.avatar);
+		if (src) {
+			const img = document.createElement("img");
+			img.alt = "";
+			img.referrerPolicy = "no-referrer";
+			img.decoding = "async";
+			img.addEventListener("error", badge, { once: true });
+			img.src = src;
+			el.append(img);
+		} else badge();
+		return el;
+	}
+	/** A list row: avatar, label, and [lane@host] for an agent. */
+	presenceRow(m, item) {
+		const row = document.createElement(item ? "div" : "li");
+		if (item) {
+			row.setAttribute("role", "menuitem");
+			row.tabIndex = 0;
+		}
+		row.className = "prow";
+		const name = document.createElement("span");
+		name.className = "pname";
+		const tag = laneTag(m);
+		name.textContent = tag && (m.label === tag.slice(1, -1) || m.label === m.lane) ? "" : m.label;
+		row.append(this.presenceAvatar(m), name);
+		if (tag) {
+			const t = document.createElement("span");
+			t.className = "ptag";
+			t.textContent = tag;
+			row.append(t);
+		}
+		return row;
+	}
+	/**
+	* The presence strip (part="presence"), centred above the input row:
+	* up to 3 stacked avatars, "+N" past 3, a preview of up to 8 on hover or
+	* focus, and on click the whole list as a menu. Hidden when no one else is here.
+	*/
+	renderPresence() {
+		const strip = this.els.presence;
+		const list = this.els.plist;
+		if (!strip || !list) return;
+		const v = presenceView(this._presence.members, this._self);
+		strip.hidden = v.hidden;
+		list.hidden = v.hidden || this.panel !== "presence";
+		if (v.hidden) {
+			this._presenceHover = false;
+			strip.replaceChildren();
+			list.replaceChildren();
+			if (this.panel === "presence") this.panel = "none";
+			return;
+		}
+		let btn = strip.querySelector("button.pstack");
+		if (!btn) {
+			btn = document.createElement("button");
+			btn.type = "button";
+			btn.className = "pstack";
+			btn.setAttribute("aria-haspopup", "menu");
+			const set = (on) => {
+				if (this._presenceHover === on) return;
+				this._presenceHover = on;
+				this.renderPresence();
+			};
+			strip.addEventListener("pointerenter", () => set(true));
+			strip.addEventListener("pointerleave", () => set(false));
+			strip.addEventListener("focusin", () => set(true));
+			strip.addEventListener("focusout", (e) => {
+				if (!strip.contains(e.relatedTarget)) set(false);
+			});
+			btn.addEventListener("click", () => this.setPanel(this.panel === "presence" ? "none" : "presence"));
+			strip.append(btn);
+		}
+		const peek = (() => {
+			let p = strip.querySelector("ul.ppeek");
+			if (!p) {
+				p = document.createElement("ul");
+				p.className = "ppeek";
+				p.setAttribute("aria-hidden", "true");
+				strip.append(p);
+			}
+			return p;
+		})();
+		btn.setAttribute("aria-label", presenceAria(v.all, this.ui.presenceHere));
+		btn.title = v.all.map(memberLabel).join("\n");
+		btn.setAttribute("aria-expanded", String(this.panel === "presence"));
+		btn.replaceChildren(...v.stack.map((m) => this.presenceAvatar(m)));
+		if (v.more) {
+			const more = document.createElement("span");
+			more.className = "pmore";
+			more.textContent = `+${v.more}`;
+			btn.append(more);
+		}
+		const showPeek = this._presenceHover && this.panel !== "presence";
+		peek.hidden = !showPeek;
+		peek.replaceChildren(...showPeek ? v.preview.map((m) => this.presenceRow(m, false)) : []);
+		strip.classList.toggle("expanded", showPeek);
+		if (!list.hidden) {
+			const head = document.createElement("span");
+			head.className = "head";
+			head.textContent = `${this.ui.presenceHere} · ${v.all.length}`;
+			list.setAttribute("aria-label", this.ui.presenceHere);
+			list.replaceChildren(head, ...v.all.map((m) => this.presenceRow(m, true)));
+		} else list.replaceChildren();
+	}
+	setOpen(v) {
+		if (v) this.atEnd = true;
+		this.open = v;
+		this.write("open", v ? "1" : "0");
+		this.messagesChanged();
+		this.renderAll();
+		requestAnimationFrame?.(() => this.fit());
+	}
+	setPanel(p) {
+		if (p === this.panel) return;
+		const opening = p === "tree" && this.panel !== "tree";
+		this.panel = p;
+		if (opening) this.loadTree();
+		this.renderLayout();
+		this.renderMenu();
+		this.renderActions();
+		this.renderFileList();
+		this.renderPresence();
+		if (opening && this.open) this.els.column.scrollTop = 0;
+		requestAnimationFrame?.(() => this.fit());
+	}
+	/** The log opens to 30vh while the input has focus, a mic is on, or the tree is open. */
+	wide() {
+		return this.typing || this._micActive || this.panel === "tree";
+	}
+	status() {
+		if (this._notice) return this.ui.statusUnavailable;
+		if (this.offline) return this.ui.statusNotConnected;
+		if (!this._live) return this.ui.statusReconnecting;
+		return this._listeners ? this.tr("statusListening", { n: this._listeners }) : this.ui.statusAgentOffline;
+	}
+	renderAll() {
+		if (!this.root) return;
+		this.style.transform = `translate(${this.pos.x}px, ${this.pos.y}px)`;
+		this.renderLayout();
+		this.renderAsks();
+		this.renderEvals();
+		this.renderBusy();
+		this.renderLog();
+		this.renderInput();
+		this.renderAim();
+		this.renderPresence();
+		this.renderPlaceholder();
+		this.renderPartial();
+		this.renderTree();
+		this.renderFrontier();
+		this.renderStatus();
+		this.renderMenu();
+		this.renderActions();
+		this.renderFiles();
+		this.renderFileList();
+	}
+	/** Open or minimized, which panel, the column's size: the box's frame. */
+	renderLayout() {
+		if (!this.root) return;
+		const { box, column, slot, mark, treebtn, tree, tclose, ftree } = this.els;
+		const ui = this.ui;
+		box.classList.toggle("min", !this.open);
+		this.toggleAttribute("open", this.open);
+		this.toggleAttribute("min", !this.open);
+		box.classList.toggle("on", this._micActive || this.panel !== "none");
+		box.classList.toggle("typing", this.typing && this.open);
+		this.renderAttached();
+		this.renderFiles();
+		column.hidden = !this.open;
+		slot.toggleAttribute("inert", !this.open);
+		if (this.open) slot.removeAttribute("aria-hidden");
+		else slot.setAttribute("aria-hidden", "true");
+		mark.setAttribute("aria-expanded", String(this.open));
+		treebtn.setAttribute("aria-expanded", String(this.panel === "tree"));
+		treebtn.setAttribute("aria-label", ui.stateTree);
+		tree.setAttribute("aria-label", ui.stateTree);
+		tclose.setAttribute("aria-label", ui.closeTree);
+		if (this.panel === "tree") {
+			const host = this.open ? column : ftree;
+			if (tree.parentElement !== host) host.prepend(tree);
+		} else tree.remove();
+		const wide = this.wide();
+		column.classList.toggle("wide", wide);
+		this.els.tbody.classList.toggle("wide", wide);
+		this.renderAim();
+		this.renderFrontier();
+		this.onColumnScroll();
+		this.treeFade();
+		if (!wide && this.panel !== "tree") this.toEnd();
+		this.placeFloat();
+	}
+	renderStatus() {
+		if (!this.root) return;
+		const dot = this._live && this._listeners ? "oklch(0.68 0.16 150)" : this._live ? "oklch(0.75 0.13 75)" : "oklch(0.62 0.02 70)";
+		this.els.dot.style.background = dot;
+		const status = this.status();
+		this.els.bar.title = status;
+		const unread = this.open ? 0 : countUnread(this._messages, (id) => this.arrivals.seqOf(id), this.readSeq);
+		const badge = this.els.unread;
+		badge.hidden = unread === 0;
+		badge.textContent = String(unread);
+		this.els.mark.setAttribute("aria-label", this.open ? this.ui.minimizeChat : unread ? this.tr("restoreChatNew", { n: unread }) : this.ui.restoreChat);
+		this.renderPlaceholder();
+		if (this.panel === "menu") this.renderMenu();
+	}
+	/** The eval/preview sessions on the tree button: their count, pulsing when code just ran. */
+	renderEvals() {
+		if (!this.root) return;
+		const evals = this._sessions.filter((x) => x.scope !== "chat");
+		const b = this.els.evals;
+		b.hidden = !evals.length;
+		b.textContent = String(evals.length);
+		b.classList.toggle("ran", this._evalRan);
+		const kind = this._friend ? "preview" : "eval";
+		this.els.treebtn.title = evals.length ? `${this.ui.treeHint}\n${evals.map((x) => `${kind}: ${x.label} · ${x.code}`).join("\n")}` : this.ui.treeHint;
+		this.els.mark.title = this.ui.markHint;
+		this.root.getElementById("box")?.setAttribute("aria-label", this.ui.chatWithAgent);
+		this.els.input?.setAttribute("aria-label", this.ui.messageAgentLabel);
+	}
+	/** The spinner in the input while the agent works. */
+	renderBusy() {
+		if (!this.root) return;
+		const s = this.els.spin;
+		s.hidden = !this._busy;
+		s.title = this.ui.agentWorking;
+		s.setAttribute("aria-label", this.ui.agentWorking);
+		this.els.input.classList.toggle("pe", this._busy);
+	}
+	/** A pairing request above the bar. */
+	renderAsks() {
+		if (!this.root) return;
+		const row = this.els.asks;
+		row.setAttribute("aria-label", this.ui.asksLabel);
+		row.replaceChildren();
+		const p = this._pending;
+		if (p) row.append(this.renderAsk(p));
+	}
+	/**
+	* A pairing request, compact: its code, what it asks for, Allow and ✕ —
+	* and, for code on a user with more than one page open, a checkbox per
+	* page (this one ticked) plus "all pages". Chat is always every page. An agent that did not say what
+	* it wants (an older client) gets the two old answers: code (8h) and chat.
+	*/
+	renderAsk(p) {
+		const ask = document.createElement("span");
+		ask.className = "ask";
+		ask.setAttribute("role", "alertdialog");
+		const all = this._allPages && !this._friend;
+		const where = all ? this.ui.askWhereAll : this.ui.askWhereChosen;
+		const what = this._friend ? this.tr("askFriend", { where }) : p.scope === "eval" ? this.tr("askEval", { where }) : p.scope === "chat" ? this.ui.askChat : this.ui.askOld;
+		const sentence = this.tr("askSentence", {
+			label: p.label,
+			what,
+			code: p.code
+		});
+		ask.setAttribute("aria-label", sentence);
+		ask.title = sentence;
+		ask.innerHTML = ICONS.lock;
+		const code = document.createElement("b");
+		code.textContent = p.code;
+		ask.append(code);
+		if (p.scope) {
+			const tag = document.createElement("span");
+			tag.className = "tag";
+			tag.textContent = this._friend ? this.ui.tagCode1h : p.scope === "eval" ? this.ui.tagCode8h : this.ui.tagChat30d;
+			ask.append(tag);
+		}
+		if (!this.picked.has(p.pair)) this.picked.set(p.pair, new Set(this._self ? [this._self] : []));
+		const picked = this.picked.get(p.pair);
+		const pages = () => {
+			if (all) return "all";
+			const cur = this.picked.get(p.pair);
+			if (cur === "all") return "all";
+			return cur && cur.size ? [...cur] : void 0;
+		};
+		const btn = (cls, text, title, fn) => {
+			const b = document.createElement("button");
+			b.type = "button";
+			b.className = cls;
+			b.textContent = text;
+			b.title = title;
+			b.setAttribute("aria-label", title);
+			b.addEventListener("click", fn);
+			ask.append(b);
+		};
+		if (p.scope || this._friend) btn("y", this.ui.allow, all ? this.ui.allowAllTitle : this.ui.allowTickedTitle, () => this.onAnswer?.("allow", p, { pages: pages() }));
+		else {
+			btn("y", this.ui.allow8h, all ? this.ui.allow8hAllTitle : this.ui.allow8hTitle, () => this.onAnswer?.("allow", p, { pages: pages() }));
+			btn("c", this.ui.chatOnly, this.ui.chatOnlyTitle, () => this.onAnswer?.("allow", p, {
+				pages: pages(),
+				scope: "chat"
+			}));
+		}
+		btn("n", "✕", this.ui.deny, () => this.onAnswer?.("deny", p, {}));
+		if (all || this._pages.length < 2 || p.scope === "chat" && !this._friend) return ask;
+		const wrap = document.createElement("div");
+		wrap.className = "askwrap";
+		const list = document.createElement("div");
+		list.className = "pagelist";
+		const box = (label, checked, on) => {
+			const l = document.createElement("label");
+			const c = document.createElement("input");
+			c.type = "checkbox";
+			c.checked = checked;
+			c.addEventListener("change", () => on(c.checked));
+			l.append(c, document.createTextNode(label));
+			list.append(l);
+		};
+		const allTicked = picked === "all";
+		for (const pg of this._pages) box(`${pageHint(pg.label)}${pg.id === this._self ? this.ui.thisPage : ""}`, allTicked || picked.has(pg.id), (v) => {
+			const cur = this.picked.get(p.pair);
+			const set = cur === "all" ? new Set(this._pages.map((x) => x.id)) : new Set(cur);
+			if (v) set.add(pg.id);
+			else set.delete(pg.id);
+			this.picked.set(p.pair, set);
+			this.renderAsks();
+		});
+		box(this.ui.pagesAllLater, allTicked, (v) => {
+			this.picked.set(p.pair, v ? "all" : new Set(this._self ? [this._self] : []));
+			this.renderAsks();
+		});
+		wrap.append(ask, list);
+		return wrap;
+	}
+	/** A polished line's body (its text, or tapped, the raw STT text) and its sparkle. */
+	lineBody(m, onToggle) {
+		const ctx = m.context ? this.contextNodes(m.context, m.id, onToggle) : [];
+		const files = m.attachments?.length && m.from !== "agent" ? [this.sentFiles(m.attachments)] : [];
+		const legacy = parseLegacyCtx(m.text);
+		const views = [...m.ctx ? [ctxViewFor(this._ctxRenderer, m.ctx, m)] : [], ...(legacy?.ctxs ?? []).map((c) => "ctx" in c ? ctxViewFor(this._ctxRenderer, c.ctx, m) : legacyCtxView(c.raw))];
+		const chips = [];
+		const panels = [];
+		views.forEach((view, i) => {
+			const key = `${m.id}#${i}`;
+			const [chip, panel] = ctxChipEls(document, view, this.openCtx.has(key), key, () => {
+				if (!this.openCtx.delete(key)) this.openCtx.add(key);
+				onToggle();
+			});
+			if (chip) chips.push(chip);
+			if (panel) panels.push(panel);
+		});
+		const shown = legacy ? {
+			...m,
+			text: legacy.text
+		} : m;
+		return [
+			...ctx,
+			...files,
+			...chips,
+			...this.lineText(shown, onToggle),
+			...panels
+		];
+	}
+	/** What a line carried (a quote, its files) above its text; text only, never HTML. */
+	contextNodes(c, key, onToggle) {
+		const out = [];
+		if (c.selection) {
+			const whole = this.wholeQuotes.has(key);
+			const q = document.createElement("button");
+			q.type = "button";
+			q.className = whole ? key ? "quote whole" : "q whole" : key ? "quote" : "q";
+			q.setAttribute("aria-label", this.ui.attachQuoted);
+			q.setAttribute("aria-expanded", String(whole));
+			const where = [c.host, c.path].filter(Boolean).join("");
+			q.title = c.title ? `${c.title}${where ? ` · ${where}` : ""}` : where;
+			q.textContent = whole ? c.selection : oneLine(c.selection);
+			q.addEventListener("pointerdown", keepFocus);
+			q.addEventListener("click", (ev) => {
+				ev.stopPropagation();
+				if (!this.wholeQuotes.delete(key)) this.wholeQuotes.add(key);
+				onToggle();
+			});
+			out.push(q);
+		}
+		if (c.files?.length) {
+			const files = document.createElement("span");
+			files.className = "files";
+			for (const f of c.files) {
+				const ok = /^(https?:\/\/|\/(?!\/))/i.test(f.url);
+				const el = document.createElement(ok ? "a" : "span");
+				el.textContent = `📎 ${f.name}`;
+				el.setAttribute("aria-label", `${this.ui.attachFile}: ${f.name}`);
+				if (ok) {
+					el.href = f.url;
+					el.target = "_blank";
+					el.rel = "noopener noreferrer";
+				}
+				files.append(el);
+			}
+			out.push(files);
+		}
+		return out;
+	}
+	lineText(m, onToggle) {
+		if (!m.edited || m.raw === void 0) return linkify(m.text);
+		const raw = this.rawIds.has(m.id);
+		const body = document.createElement("span");
+		if (raw) body.className = "raw";
+		body.append(...linkify(raw ? m.raw : m.text));
+		const mark = document.createElement("button");
+		mark.type = "button";
+		mark.className = "polished";
+		mark.title = this.ui.polished;
+		mark.setAttribute("aria-label", this.ui.polished);
+		mark.setAttribute("aria-pressed", String(raw));
+		mark.innerHTML = ICONS.sparkle;
+		mark.addEventListener("click", (ev) => {
+			ev.stopPropagation();
+			if (!this.rawIds.delete(m.id)) this.rawIds.add(m.id);
+			onToggle();
+		});
+		return [body, mark];
+	}
+	renderLog() {
+		if (!this.root) return;
+		const log = this.els.log;
+		log.replaceChildren();
+		if (this._messages.length === 0) {
+			const li = document.createElement("li");
+			li.className = "hint";
+			li.textContent = this.tr("hintType", { s: DEBOUNCE_MS / 1e3 });
+			log.append(li);
+		}
+		const shown = filterByChannel(this._messages, this._channelOf, this._channelFilter);
+		const keep = this.collapsedCount;
+		const older = keep ? shown.length - keep : 0;
+		for (const [i, m] of shown.entries()) {
+			const li = document.createElement("li");
+			if (i < older) li.classList.add("older");
+			li.dataset.from = m.from;
+			li.dataset.id = m.id;
+			const who = lineAvatar(m, {
+				friend: this._friend,
+				user: this._user,
+				agentAvatar: this._agentAvatar,
+				avatarFor: this.avatarFor
+			});
+			const node = lineNode(m);
+			li.title = node ? `${when(m.at)} · ${who.name} · ${node.subtitle}` : when(m.at);
+			const text = document.createElement("span");
+			text.className = "text";
+			if (node) {
+				li.classList.add("node");
+				li.dataset.node = node.node;
+				li.style.setProperty("--node", node.border);
+				const sub = document.createElement("span");
+				sub.className = "sub";
+				sub.setAttribute("aria-hidden", "true");
+				sub.textContent = node.subtitle;
+				text.append(sub);
+			}
+			const sr = document.createElement("span");
+			sr.className = "sr";
+			sr.textContent = node ? `${who.name} (${node.subtitle}): ` : `${who.name}: `;
+			const ch = channelFor(this._channelOf, m);
+			if (ch) text.append(channelTagEl(document, ch));
+			text.append(sr, ...this.lineBody(m, () => {
+				this.renderLog();
+				this.renderFloatTexts();
+			}));
+			const av = avatarEl(who.srcs, who.node, who.name, initialOf(who.initialFrom), who.seed, 0, when(m.at));
+			li.append(av, text);
+			log.append(li);
+		}
+		if (this.restoreTo !== void 0) this.tryRestore();
+		else if (this.open && this.atEnd) this.toEnd();
+		this.onColumnScroll();
+		this.renderStatus();
+	}
+	/**
+	* Where the log is scrolled (ScrollState): read it to keep it in your own
+	* storage, set it to go back there (it waits until that line is rendered
+	* and the log is shown; a line that is gone leaves the log at its end).
+	* With the keep-scroll attribute the box keeps it itself, under its
+	* storage-key. A "scroll-state" event (detail: the state) follows the
+	* user's own scrolling.
+	*/
+	get scrollState() {
+		if (this.restoreTo !== void 0) return this.restoreTo;
+		const c = this.els.column;
+		if (!c || !c.clientHeight || this.atEnd) return null;
+		const top = c.getBoundingClientRect().top;
+		for (const li of this.els.log.querySelectorAll("li[data-id]")) {
+			const r = li.getBoundingClientRect();
+			if (r.bottom > top) return {
+				id: li.dataset.id,
+				dy: Math.round(top - r.top)
+			};
+		}
+		return null;
+	}
+	set scrollState(v) {
+		if (v === null) {
+			this.restoreTo = void 0;
+			this.atEnd = true;
+			this.toEnd();
+			return;
+		}
+		if (!v || typeof v.id !== "string" || !Number.isFinite(v.dy)) return;
+		this.restoreTo = {
+			id: v.id,
+			dy: v.dy
+		};
+		this.tryRestore();
+	}
+	/** Go to restoreTo if its line is there and the log is laid out; drop it if the line is gone. */
+	tryRestore() {
+		const want = this.restoreTo;
+		const c = this.els.column;
+		if (!want || !c || !this.open || !c.clientHeight) return;
+		const li = [...this.els.log.querySelectorAll("li[data-id]")].find((x) => x.dataset.id === want.id);
+		if (!li) {
+			if (this._messages.length) {
+				this.restoreTo = void 0;
+				this.toEnd();
+			}
+			return;
+		}
+		this.restoreTo = void 0;
+		this.atEnd = false;
+		this.ownPin = false;
+		c.scrollTop += li.getBoundingClientRect().top - c.getBoundingClientRect().top + want.dy;
+		this.onColumnScroll();
+	}
+	/** The user scrolled: a pending restore is moot; keep and announce the new position. */
+	scrolledByUser() {
+		this.restoreTo = void 0;
+		clearTimeout(this.saveTimer);
+		this.saveTimer = setTimeout(() => {
+			const v = this.scrollState;
+			if (this.hasAttribute("keep-scroll")) this.write("scroll", JSON.stringify(v));
+			this.dispatchEvent(new CustomEvent("scroll-state", { detail: v }));
+		}, 200);
+	}
+	toEnd() {
+		const c = this.els.column;
+		if (!c || !this.open) return;
+		c.scrollTop = c.scrollHeight;
+		this.atEnd = true;
+	}
+	onColumnScroll() {
+		const c = this.els.column;
+		if (!c) return;
+		c.classList.toggle("fade", c.scrollHeight > c.clientHeight + 1 || c.scrollTop > 0);
+		const gap = c.scrollHeight - c.scrollTop - c.clientHeight;
+		const userScrolled = Date.now() - this.userScrollAt < USER_SCROLL_MS;
+		this.atEnd = atEndAfter({
+			atEnd: this.atEnd,
+			gap,
+			clientHeight: c.clientHeight,
+			userScrolled
+		});
+		if (gap < 4) this.ownPin = false;
+	}
+	/** The log or its lines changed size: a log at its end stays there (src/log-pin.ts). */
+	repin() {
+		const c = this.els.column;
+		if (!c || !this.open) return;
+		const to = repinEnd({
+			atEnd: this.atEnd,
+			scrollTop: c.scrollTop,
+			scrollHeight: c.scrollHeight,
+			clientHeight: c.clientHeight
+		});
+		if (to === null) return;
+		this.ownPin = true;
+		c.scrollTop = to;
+	}
+	/**
+	* After the messages (or open/minimized) changed: what arrived (by id, on
+	* this device's clock), what is read, and what floats. Expanded, everything
+	* is read and nothing floats; just minimized, the latest floats again;
+	* minimized, every new line floats — never the history loading in.
+	*/
+	messagesChanged(mine = false) {
+		const now = Date.now();
+		const { fresh, history } = this.arrivals.see(this._messages, now);
+		if (this.open || history) this.readSeq = this.arrivals.seq();
+		const minimizing = this.wasOpen && !this.open;
+		this.wasOpen = this.open;
+		if (mine) this.atEnd = true;
+		this.renderLog();
+		if (!this.root) return;
+		if (this.open) return this.clearFloats();
+		if (minimizing) {
+			this.clearFloats();
+			this.frontierOpen = null;
+			const last = minimizeFloat(this._messages, now, this.arrivals.at);
+			if (last) this.addFloat(last);
+			return;
+		}
+		if (history) return;
+		for (const m of fresh) this.addFloat(m);
+	}
+	clearFloats() {
+		for (const f of this.floats.values()) f.life.cancel();
+		this.floats.clear();
+		this.els.floats?.replaceChildren();
+	}
+	addFloat(m) {
+		const old = this.floats.get(m.id);
+		if (old) {
+			old.life.cancel();
+			old.li.remove();
+			this.floats.delete(m.id);
+		}
+		const li = document.createElement("li");
+		li.className = "float";
+		li.dataset.from = m.from;
+		const f = {
+			m,
+			li,
+			life: createFloatLife({
+				ms: dwellMs(m.text),
+				reducedMotion: reducedMotion(),
+				paused: this.floatHover,
+				onPhase: (p) => {
+					if (p === "gone") this.dropFloat(m.id);
+					else li.classList.toggle("fading", p === "fade");
+				}
+			})
+		};
+		this.floats.set(m.id, f);
+		this.fillFloat(f.li, m);
+		this.els.floats.append(li);
+		while (this.floats.size > FLOAT_MAX) this.dropFloat(this.floats.keys().next().value);
+		this.placeFloat();
+	}
+	dropFloat(id) {
+		const f = this.floats.get(id);
+		if (!f) return;
+		f.life.cancel();
+		f.li.remove();
+		this.floats.delete(id);
+		this.placeFloat();
+	}
+	/** "who: text" (the latest copy: an edit changes it in place), and a polished line's sparkle. */
+	fillFloat(li, m0) {
+		const m = this._messages.find((x) => x.id === m0.id) ?? m0;
+		const who = document.createElement("span");
+		who.className = "who";
+		who.style.color = m.from !== "agent" ? "oklch(0.55 0.13 250)" : "oklch(0.55 0.14 150)";
+		who.textContent = `${m.from !== "agent" ? this.ui.you : m.label || this.ui.agentName}:`;
+		li.replaceChildren(who, ...this.lineBody(m, () => this.renderFloatTexts()));
+	}
+	renderFloatTexts() {
+		for (const f of this.floats.values()) this.fillFloat(f.li, f.m);
+	}
+	/** Hovered or touched: every line's timer waits; released, they go on. */
+	holdFloats(v) {
+		if (this.floatHover === v) return;
+		this.floatHover = v;
+		for (const f of this.floats.values()) (v ? f.life.pause : f.life.resume)();
+	}
+	renderFrontier() {
+		if (!this.root) return;
+		const ul = this.els.frontier;
+		ul.replaceChildren();
+		if (this.open || !this.treeRoot) return this.placeFloat();
+		const lang = globalThis.document?.documentElement.lang || void 0;
+		const view = frontierView(frontier(this.treeRoot, { locale: lang }));
+		const ui = this.ui;
+		for (const r of FRONTIER_ROWS) {
+			const line = view?.[r.key];
+			if (!line?.text) continue;
+			const items = line.items ?? [];
+			const group = items.length > 0;
+			const expanded = group && this.frontierOpen === r.key;
+			const id = r.key === "doing" ? shownAgentId(line.assignee) : null;
+			const count = countBadge(line.count);
+			const li = document.createElement("li");
+			li.dataset.status = r.key;
+			if (expanded) li.dataset.expanded = "";
+			const row = document.createElement("div");
+			row.className = "fl";
+			const b = document.createElement("button");
+			b.type = "button";
+			b.className = "fb";
+			const name = r.key === "done" ? ui.lastDone : r.key === "doing" ? ui.nowDoing : ui.upNext;
+			b.setAttribute("aria-label", `${name}: ${line.text}${count ? `, ${line.count} ${ui.items}` : ""}`);
+			if (group) b.setAttribute("aria-expanded", String(expanded));
+			b.addEventListener("mousedown", (e) => e.preventDefault());
+			b.addEventListener("click", () => {
+				if (!group) return;
+				this.frontierOpen = expanded ? null : r.key;
+				this.renderFrontier();
+			});
+			const mk = document.createElement("span");
+			mk.className = `m${r.key === "doing" ? " blink" : ""}`;
+			mk.setAttribute("aria-hidden", "true");
+			mk.textContent = r.mark;
+			b.append(mk);
+			if (r.key === "doing" && line.assignee) {
+				const av = assigneeAvatar(line.assignee);
+				av.classList.add("blink");
+				b.append(av);
+			}
+			const t = document.createElement("span");
+			t.className = "t";
+			t.textContent = line.text;
+			b.append(t);
+			if (count) {
+				const n = document.createElement("span");
+				n.className = "n";
+				n.textContent = count;
+				b.append(n);
+			}
+			row.append(b);
+			if (id) row.append(agentIdEl(id));
+			li.append(row);
+			if (expanded) li.append(frontierItems(items));
+			ul.append(li);
+		}
+		this.placeFloat();
+	}
+	/** The float box on the bar's side of the screen, inside the viewport and its safe areas (anchor.ts). */
+	placeFloat() {
+		const fb = this.els.floatbox;
+		if (!fb) return;
+		const show = !this.open && this.panel !== "menu" && (this.floats.size > 0 || this.els.frontier.childElementCount > 0 || this.panel === "tree");
+		fb.hidden = !show;
+		if (!show) return;
+		const bar = this.els.bar.getBoundingClientRect();
+		const row = this.els.rowbox.getBoundingClientRect();
+		const ins = safeInsets();
+		const p = placeBox({
+			barLeft: bar.left,
+			barRight: bar.right,
+			boxWidth: fb.getBoundingClientRect().width,
+			vw: document.documentElement.clientWidth || innerWidth,
+			insetLeft: ins.left,
+			insetRight: ins.right
+		});
+		const next = {
+			side: p.side,
+			left: p.left - row.left
+		};
+		if (next.side === this.place.side && next.left === this.place.left && fb.dataset.side) return;
+		this.place = next;
+		fb.dataset.side = next.side;
+		fb.style.left = `${next.left}px`;
+	}
+	renderInput() {
+		if (!this.root) return;
+		const warn = this.els.warn;
+		warn.hidden = !this._warning || !this.open;
+		warn.textContent = this._warning;
+		const notice = this.els.notice;
+		notice.hidden = !this._notice;
+		notice.textContent = this._notice;
+		this.els.input.hidden = !!this._notice;
+		this.renderStatus();
+	}
+	/** Over the bar: what goes with the next line, × to drop it. */
+	renderAttached() {
+		const row = this.els.att;
+		if (!row) return;
+		row.replaceChildren();
+		row.hidden = !this._attached || !this.open;
+		if (this._attached) {
+			const att = document.createElement("div");
+			att.className = "attached";
+			const what = document.createElement("div");
+			what.className = "what";
+			what.append(...this.contextNodes(this._attached, "", () => this.renderAttached()));
+			const x = document.createElement("button");
+			x.type = "button";
+			x.className = "x";
+			x.textContent = "×";
+			x.setAttribute("aria-label", this.ui.attachRemove);
+			x.addEventListener("pointerdown", keepFocus);
+			x.addEventListener("click", () => this.attach(null));
+			att.append(what, x);
+			row.append(att);
+		}
+	}
+	/** What an action's callbacks get. */
+	actionHost() {
+		return {
+			attach: (ctx) => this.attach(ctx),
+			focus: () => this.els.input?.focus(),
+			close: () => this.setActionsMenu(false),
+			notice: (text) => {
+				clearTimeout(this.noticeTimer);
+				this.warning = text;
+				this.noticeTimer = setTimeout(() => this.warning = "", 4e3);
+			},
+			addFiles: (list) => this.addFiles(list),
+			box: this
+		};
+	}
+	/** Run an action: onSelect, then attach (its result merged into the next line's context). */
+	async runAction(a) {
+		if (!this.canRun(a)) return;
+		const host = this.actionHost();
+		if (a.upload) this.pickFiles(a.accept);
+		try {
+			await a.onSelect?.(host);
+			if (a.attach) {
+				const ctx = await a.attach(host);
+				if (ctx) this.attach(ctx, a.id);
+			}
+		} catch (e) {
+			host.notice(e instanceof Error && e.message ? e.message : String(e));
+		}
+	}
+	/** Whether an action can be picked now: an upload action needs `box.files`. */
+	canRun(a) {
+		return actionEnabled(a) && (!a.upload || this.takesFiles());
+	}
+	/** One bar button for an action. */
+	actionButton(a) {
+		const b = document.createElement("button");
+		b.type = "button";
+		b.className = "tap act";
+		b.dataset.action = a.id;
+		b.setAttribute("aria-label", a.label);
+		b.title = a.hint?.() || a.label;
+		b.disabled = !this.canRun(a);
+		b.append(iconNode(a.icon, a.label.slice(0, 1)));
+		b.addEventListener("pointerdown", keepFocus);
+		b.addEventListener("click", () => void this.runAction(a));
+		return b;
+	}
+	/** The bar's slots (leading, trailing, the mic's place, the tree's, the +) and the + menu. */
+	renderActions() {
+		if (!this.root) return;
+		const { bar, lead, trail, mic, slot, treebtn, plus, amenu, micslot } = this.els;
+		lead.replaceChildren(...actionsAt(this._actions, "leading").map((a) => this.actionButton(a)));
+		trail.replaceChildren(...actionsAt(this._actions, "trailing").map((a) => this.actionButton(a)));
+		const where = this.micPlacement;
+		mic.hidden = !(micslot.assignedElements?.().length ?? 0) || where === "hidden";
+		mic.classList.toggle("inside", where === "inside");
+		const [parent, before] = where === "leading" ? [bar, lead] : where === "inside" ? [slot, null] : [bar, this.els.unread];
+		if (mic.parentElement !== parent || mic.nextElementSibling !== before) parent.insertBefore(mic, before);
+		treebtn.hidden = this.treePlacement !== "leading";
+		const menuTree = this.treePlacement === "menu";
+		const groups = menuGroups(this._actions);
+		const fileList = !!this._files?.list && !this._notice;
+		const any = groups.length > 0 || menuTree || fileList;
+		plus.hidden = !any;
+		plus.setAttribute("aria-label", this.ui.attachOpen);
+		plus.title = this.ui.attachOpen;
+		if (!any && this.panel === "plus") this.panel = "none";
+		plus.setAttribute("aria-expanded", String(this.panel === "plus"));
+		amenu.hidden = this.panel !== "plus";
+		amenu.setAttribute("aria-label", this.ui.attachOpen);
+		if (amenu.hidden) return;
+		amenu.replaceChildren();
+		const row = (id, label, icon, hint, on, pick) => {
+			const b = document.createElement("button");
+			b.type = "button";
+			b.className = "item";
+			b.setAttribute("role", "menuitem");
+			b.dataset.action = id;
+			b.disabled = !on;
+			if (!on) b.setAttribute("aria-disabled", "true");
+			const badge = document.createElement("span");
+			badge.className = "badge";
+			badge.setAttribute("aria-hidden", "true");
+			badge.append(icon);
+			const lab = document.createElement("span");
+			lab.className = "lab";
+			const t = document.createElement("span");
+			t.textContent = label;
+			lab.append(t);
+			if (hint) {
+				const h = document.createElement("span");
+				h.className = "hint";
+				h.textContent = hint;
+				lab.append(h);
+			}
+			b.append(badge, lab);
+			b.addEventListener("click", () => {
+				if (b.disabled) return;
+				this.setPanel("none");
+				pick();
+			});
+			amenu.append(b);
+		};
+		if (menuTree) {
+			const icon = document.createElement("span");
+			icon.innerHTML = ICONS.tree;
+			row("tree", this.ui.stateTree, icon, void 0, true, () => this.setPanel("tree"));
+		}
+		if (fileList) {
+			const icon = document.createElement("span");
+			icon.innerHTML = ICONS.files;
+			row("files", this.ui.files, icon, void 0, true, () => this.openFileList());
+		}
+		for (const g of groups) {
+			if (g.group) {
+				const head = document.createElement("div");
+				head.className = "head";
+				head.textContent = g.group;
+				amenu.append(head);
+			}
+			for (const a of g.items) {
+				let hint;
+				try {
+					hint = a.hint?.();
+				} catch {}
+				row(a.id, a.label, iconNode(a.icon, "+"), hint, this.canRun(a), () => void this.runAction(a));
+			}
+		}
+	}
+	renderMenu() {
+		if (!this.root) return;
+		const menu = this.els.menu;
+		menu.hidden = this.panel !== "menu";
+		if (menu.hidden) return;
+		menu.replaceChildren();
+		const status = document.createElement("span");
+		status.className = "status";
+		status.setAttribute("aria-live", "polite");
+		status.textContent = this.status();
+		const speak = document.createElement("button");
+		speak.type = "button";
+		speak.setAttribute("role", "menuitemcheckbox");
+		const on = this.speaking || this._micActive;
+		speak.setAttribute("aria-checked", String(on));
+		speak.innerHTML = ICONS.speaker;
+		speak.append(this._micActive ? this.ui.readAloudMic : on ? this.ui.readAloud : this.ui.silent);
+		speak.addEventListener("click", () => {
+			if (this._micActive) return;
+			const v = !this.speaking;
+			this.write("speak", v ? "1" : "0");
+			if (!v) this.stopSpeech("off");
+			this.renderMenu();
+		});
+		const rate = document.createElement("div");
+		rate.className = "rate";
+		rate.setAttribute("role", "radiogroup");
+		rate.setAttribute("aria-label", this.ui.speedLabel);
+		const lab = document.createElement("span");
+		lab.textContent = this.ui.speed;
+		rate.append(lab);
+		const cur = this.speechRate;
+		for (const r of SPEECH_RATES) {
+			const b = document.createElement("button");
+			b.type = "button";
+			b.setAttribute("role", "radio");
+			b.setAttribute("aria-checked", String(r === cur));
+			b.dataset.rate = String(r);
+			b.textContent = `${r}×`;
+			b.addEventListener("click", () => {
+				setSpeechRate(r, this.rateStore);
+				this.renderMenu();
+			});
+			rate.append(b);
+		}
+		menu.append(status, speak, rate);
+		if (this.echoToggle && this.els.micslot.assignedElements?.().length) {
+			const aec = document.createElement("button");
+			aec.type = "button";
+			aec.setAttribute("role", "menuitemcheckbox");
+			const on = aecOn();
+			aec.setAttribute("aria-checked", String(on));
+			aec.textContent = on ? this.ui.echoOn : this.ui.echoOff;
+			aec.addEventListener("click", () => void applyAec(!on).then(() => this.renderMenu()));
+			menu.append(aec);
+		}
+		if (this._treeSource) {
+			const tree = document.createElement("button");
+			tree.type = "button";
+			tree.setAttribute("role", "menuitem");
+			tree.textContent = `☰  ${this.treeText.tree}`;
+			tree.addEventListener("click", () => this.setPanel("tree"));
+			menu.append(tree);
+		}
+		const min = document.createElement("button");
+		min.type = "button";
+		min.setAttribute("role", "menuitem");
+		min.textContent = this.open ? this.ui.minimize : this.ui.restore;
+		min.addEventListener("click", () => {
+			this.setPanel("none");
+			this.setOpen(!this.open);
+		});
+		menu.append(min);
+		for (const x of this._sessions) {
+			const row = document.createElement("div");
+			row.className = "sess";
+			const label = document.createElement("span");
+			const where = x.pages === void 0 || x.pages === "all" ? this.ui.allPages : x.pages.length === 1 ? this.ui.pagesOne : this.tr("pagesN", { n: x.pages.length });
+			label.textContent = `${x.scope === "chat" ? this.ui.sessChat : this._friend ? this.ui.sessPreview : this.ui.sessEval}: ${x.label} · ${x.code} · ${where}`;
+			const end = document.createElement("button");
+			end.type = "button";
+			end.textContent = this.ui.end;
+			end.addEventListener("click", () => {
+				this.setPanel("none");
+				this.onEnd?.(x);
+			});
+			row.append(label, end);
+			menu.append(row);
+		}
+		if (this._pages.length < 2) return;
+		const head = document.createElement("span");
+		head.className = "head";
+		head.textContent = this.ui.openPages;
+		menu.append(head);
+		for (const pg of this._pages) {
+			const row = document.createElement("div");
+			row.className = "pg";
+			const label = document.createElement("span");
+			const mine = pg.id === this._self;
+			label.textContent = `${pageHint(pg.label)}${mine ? this.ui.thisPage : ""}`;
+			label.title = pg.label;
+			const end = document.createElement("button");
+			end.type = "button";
+			end.textContent = mine && this.confirmEnd === pg.id ? this.ui.endThisPage : this.ui.end;
+			end.addEventListener("click", () => {
+				if (mine && this.confirmEnd !== pg.id) {
+					this.confirmEnd = pg.id;
+					return this.renderMenu();
+				}
+				this.confirmEnd = "";
+				this.onEndPage?.(pg.id);
+			});
+			row.append(label, end);
+			menu.append(row);
+		}
+	}
+};
+/** The same avatar value: one reference, or lists with the same URLs. */
+function same(a, b) {
+	if (a === b) return true;
+	return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((x, i) => x === b[i]);
+}
+/** An assignee's avatar in the frontier, 16px: their initial on their oklch colour. */
+function assigneeAvatar(a) {
+	const el = document.createElement("span");
+	el.className = "fav";
+	el.setAttribute("role", "img");
+	el.setAttribute("aria-label", `${a.type === "agent" ? "Agent" : "Person"}: ${a.name}`);
+	el.title = a.name;
+	const { bg, fg } = avatarColors(`${a.type}:${a.name}`);
+	el.style.background = bg;
+	el.style.color = fg;
+	el.textContent = initialOf(a.name);
+	return el;
+}
+/**
+* An agent's id at the line's far right: its last characters, monospace and
+* muted. The full id is in the title and label, and a long press on a touch
+* screen shows it in a small popover for 2 s.
+*/
+function agentIdEl(id) {
+	const el = document.createElement("span");
+	el.className = "id";
+	el.title = `agent id: ${id}`;
+	el.setAttribute("aria-label", `agent id ${id}`);
+	el.textContent = shortId(id);
+	let hide;
+	const full = document.createElement("span");
+	full.className = "full";
+	full.setAttribute("role", "tooltip");
+	full.textContent = id;
+	const press = createLongPress({
+		ms: LONG_PRESS_MS,
+		onLong: () => {
+			clearTimeout(hide);
+			el.append(full);
+		}
+	});
+	el.addEventListener("pointerdown", (e) => e.pointerType !== "mouse" && press.down());
+	el.addEventListener("pointerup", () => {
+		if (press.up()) hide = setTimeout(() => full.remove(), 2e3);
+	});
+	el.addEventListener("pointerleave", () => press.cancel());
+	el.addEventListener("pointercancel", () => press.cancel());
+	el.addEventListener("contextmenu", (e) => e.preventDefault());
+	return el;
+}
+/** A frontier group's items: title and breadcrumb, scrolling past about six. */
+function frontierItems(items) {
+	const ul = document.createElement("ul");
+	ul.className = "items";
+	for (const it of items) {
+		const li = document.createElement("li");
+		if (it.assignee) li.append(assigneeAvatar(it.assignee));
+		const t = document.createElement("span");
+		t.className = "t";
+		t.textContent = it.title;
+		if (it.path) {
+			const p = document.createElement("span");
+			p.className = "p";
+			p.textContent = it.path;
+			t.append(p);
+		}
+		li.append(t);
+		ul.append(li);
+	}
+	return ul;
+}
+/**
+* One avatar: each picture in turn (no referrer, which Google's need; lazy),
+* then the element, then the initial on an oklch circle. Labelled with the
+* name (alt / aria-label) and titled with it, and aria-hidden: the line's
+* screen-reader text already says who.
+*/
+function avatarEl(srcs, node, name, letter, seed, failed = 0, at) {
+	let el;
+	if (failed < srcs.length) {
+		const img = document.createElement("img");
+		img.alt = name;
+		img.referrerPolicy = "no-referrer";
+		img.loading = "lazy";
+		img.decoding = "async";
+		img.draggable = false;
+		img.addEventListener("error", () => img.replaceWith(avatarEl(srcs, node, name, letter, seed, failed + 1, at)), { once: true });
+		img.src = srcs[failed];
+		el = img;
+	} else {
+		el = document.createElement("span");
+		el.setAttribute("role", "img");
+		el.setAttribute("aria-label", name);
+		if (node) el.append(node.cloneNode(true));
+		else {
+			const { bg, fg } = avatarColors(seed);
+			el.style.background = bg;
+			el.style.color = fg;
+			el.textContent = letter;
+		}
+	}
+	el.className = "av";
+	el.title = at ? `${at} · ${name}` : name;
+	el.setAttribute("aria-hidden", "true");
+	return el;
+}
+function defineChatBox(tag = "liagent-chat") {
+	if (typeof customElements !== "undefined" && !customElements.get(tag)) customElements.define(tag, ChatBox);
+	return ChatBox;
+}
+
+//#endregion
+export { when as a, hashId as c, DEBOUNCE_MS as d, memoryFiles as f, wheelScrolls as i, initialOf as l, parseLegacyCtx as m, defineChatBox as n, avatarColors as o, defaultCtxView as p, pageHint as r, avatarSrcs as s, ChatBox as t, lineAvatar as u };
+//# sourceMappingURL=box-ElriKzwQ.js.map

@@ -1,4 +1,4 @@
-import { a as when, c as hashId, f as memoryFiles, i as wheelScrolls, l as initialOf, n as defineChatBox, o as avatarColors, r as pageHint, s as avatarSrcs, t as ChatBox, u as lineAvatar } from "./box-E17N5Vue.js";
-import { Et as fileAction, Nt as selectionAction, Ot as mediaAction, jt as pageSelection } from "./speak-rules-CHlO4ux7.js";
+import { a as when, c as hashId, f as memoryFiles, i as wheelScrolls, l as initialOf, m as parseLegacyCtx, n as defineChatBox, o as avatarColors, p as defaultCtxView, r as pageHint, s as avatarSrcs, t as ChatBox, u as lineAvatar } from "./box-ElriKzwQ.js";
+import { Et as fileAction, Nt as selectionAction, Ot as mediaAction, jt as pageSelection } from "./speak-rules-VvlfAmBb.js";
 
-export { ChatBox, avatarColors, avatarSrcs, defineChatBox, fileAction, hashId, initialOf, lineAvatar, mediaAction, memoryFiles, pageHint, pageSelection, selectionAction, wheelScrolls, when };
+export { ChatBox, avatarColors, avatarSrcs, defaultCtxView, defineChatBox, fileAction, hashId, initialOf, lineAvatar, mediaAction, memoryFiles, pageHint, pageSelection, parseLegacyCtx, selectionAction, wheelScrolls, when };

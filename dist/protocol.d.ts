@@ -195,9 +195,10 @@ type PageMessage = {
 } | {
   type: "deny" | "revoke";
   pair: string;
-} | {
+} /** `label`: client-side navigation; `node`: the node the box now aims at (presence). At least one. */ | {
   type: "page";
-  label: string;
+  label?: string;
+  node?: string;
 } | {
   type: "end-page";
   id: string;
@@ -409,6 +410,46 @@ declare function cleanFileName(raw: unknown): string;
  * once; at most MAX_ATTACHMENTS.
  */
 declare function cleanAttachments(raw: unknown): AttachmentRef[] | undefined;
+/** Most members a presence frame carries (more are dropped). */
+declare const MAX_PRESENCE = 200;
+/** Longest member id / label / lane / host kept. */
+declare const MAX_PRESENCE_ID = 64;
+declare const MAX_PRESENCE_NAME = 80;
+declare const MAX_PRESENCE_TAG = 40;
+/** Longest avatar URL kept (a data:image URL included). */
+declare const MAX_AVATAR_URL = 8192;
+type PresenceMember = {
+  /** Stable while present (a page id, a pairing id, a user id). */id: string;
+  kind: "user" | "agent"; /** What the strip shows: a user's display name, an agent's "lane@host" (or its label). */
+  label: string; /** An https: URL or a data:image/… URL; anything else is dropped. */
+  avatar?: string; /** An agent's lane and host, shown as [lane@host]. */
+  lane?: string;
+  host?: string;
+};
+type PresenceFrame = {
+  type: "presence";
+  node: string;
+  members: PresenceMember[];
+  at: number;
+};
+type PresenceDelta = {
+  type: "presence-delta";
+  node: string;
+  join?: PresenceMember[];
+  leave?: string[];
+  at: number;
+};
+/** An avatar URL a box may load: https:, or a raster data:image (no SVG); else undefined. */
+declare function cleanAvatarUrl(raw: unknown): string | undefined;
+/** A presence member, checked; null when it has no id. `label` falls back to lane, then id. */
+declare function cleanMember(raw: unknown): PresenceMember | null;
+/** Validate a hub's presence frame (snapshot or delta); anything else is null. */
+declare function parsePresence(raw: unknown): PresenceFrame | PresenceDelta | null;
+/** An agent label's lane and host, from "lane@host" at its start ("[syform]@symubu …" too). */
+declare function laneHostOf(label: string | undefined): {
+  lane?: string;
+  host?: string;
+};
 //#endregion
-export { APPROVAL_MS, AttachmentRef, AvatarSrc, BUSY_AFTER_REPLY_MS, BUSY_MS, CHAT_HISTORY, CHAT_MS, ChatContext, ChatMessage, ContextFile, ControllerMessage, EVAL_GRANT_MS, EditMark, EditedEvent, HubState, MAX_AGENT_ID, MAX_ATTACHMENTS, MAX_ATTACHMENT_NAME, MAX_CHAT, MAX_CODE, MAX_CONTEXT_FILES, MAX_CONTEXT_PATH, MAX_CONTEXT_TITLE, MAX_CTX, MAX_EDITS, MAX_FILE_NAME, MAX_FILE_TYPE, MAX_FILE_URL, MAX_LABEL, MAX_NODE_PATH, MAX_RESULT, MAX_SELECTION, MessageSource, NodeGrant, PAGES_GONE_MS, PAGE_DEBOUNCE_MS, PENDING_MS, PageInfo, PageMessage, PairInfo, ROOT_NODE, Scope, Sender, agentIdOf, applyEdit, chatText, cleanAttachments, cleanContext, cleanCtx, cleanFileName, cleanLabel, commonAncestor, compile, completeNode, dictatedDraft, draftSource, isPageId, isWithin, lineNode, matchesTarget, mayAddress, mergeContext, nodeHue, nodePath, parseAddress, parseControllerMessage, parsePageMessage, pathLabel, pickLang, pickVoice, routeTo, shortCode, summarize, trimHistory };
+export { APPROVAL_MS, AttachmentRef, AvatarSrc, BUSY_AFTER_REPLY_MS, BUSY_MS, CHAT_HISTORY, CHAT_MS, ChatContext, ChatMessage, ContextFile, ControllerMessage, EVAL_GRANT_MS, EditMark, EditedEvent, HubState, MAX_AGENT_ID, MAX_ATTACHMENTS, MAX_ATTACHMENT_NAME, MAX_AVATAR_URL, MAX_CHAT, MAX_CODE, MAX_CONTEXT_FILES, MAX_CONTEXT_PATH, MAX_CONTEXT_TITLE, MAX_CTX, MAX_EDITS, MAX_FILE_NAME, MAX_FILE_TYPE, MAX_FILE_URL, MAX_LABEL, MAX_NODE_PATH, MAX_PRESENCE, MAX_PRESENCE_ID, MAX_PRESENCE_NAME, MAX_PRESENCE_TAG, MAX_RESULT, MAX_SELECTION, MessageSource, NodeGrant, PAGES_GONE_MS, PAGE_DEBOUNCE_MS, PENDING_MS, PageInfo, PageMessage, PairInfo, PresenceDelta, PresenceFrame, PresenceMember, ROOT_NODE, Scope, Sender, agentIdOf, applyEdit, chatText, cleanAttachments, cleanAvatarUrl, cleanContext, cleanCtx, cleanFileName, cleanLabel, cleanMember, commonAncestor, compile, completeNode, dictatedDraft, draftSource, isPageId, isWithin, laneHostOf, lineNode, matchesTarget, mayAddress, mergeContext, nodeHue, nodePath, parseAddress, parseControllerMessage, parsePageMessage, parsePresence, pathLabel, pickLang, pickVoice, routeTo, shortCode, summarize, trimHistory };
 //# sourceMappingURL=protocol.d.ts.map
