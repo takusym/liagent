@@ -1,0 +1,7 @@
+# Fork guard: a push must contain upstream/main (snolab/liagent).
+# Install: bunx lefthook install. Override remote/URL with
+# LIAGENT_UPSTREAM_REMOTE / LIAGENT_UPSTREAM_URL.
+pre-push:
+  commands:
+    upstream-contained:
+      run: sh scripts/check-upstream.sh
