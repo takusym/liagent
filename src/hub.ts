@@ -607,14 +607,18 @@ export class ChatHub {
         if ((c.a.forUser ?? OWNER_THREAD) !== a.thread) continue;
         if (!routeTo(c.a.node, node === ROOT_NODE ? undefined : node)) continue;
         const { lane, host } = laneHostOf(c.a.label);
+        // one member per agent: a lane's listener plus a `say` (or a
+        // reconnect) are several controllers but one avatar
+        const who = `a:${lane && host ? `${lane}@${host}` : c.a.assignee || c.a.label || c.a.pair}`;
+        if (members.has(who)) continue;
         const m = cleanMember({
-          id: c.a.pair,
+          id: who,
           kind: "agent",
           label: lane && host ? `${lane}@${host}` : c.a.assignee || c.a.label || "agent",
           lane,
           host,
         });
-        if (m) members.set(m.id, m);
+        if (m) members.set(who, m);
       }
       const now = new Map([...members.values()].map((m) => [m.id, JSON.stringify(m)]));
       const last = this.sentPresence.get(ws);

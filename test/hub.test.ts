@@ -2058,6 +2058,22 @@ describe("ChatHub: presence", () => {
     expect(pres(owner).members.some((m) => m.label === "a@x.com")).toBe(false);
   });
 
+  it("an agent is one member per lane@host, however many controllers it has", async () => {
+    const s = setup();
+    const p1 = s.page("/a phone");
+    await agentAt(s, p1, "syform@symubu watching");
+    await agentAt(s, p1, "syform@symubu say");
+    const agents = pres(p1).members.filter((m) => m.kind === "agent");
+    const live = new Map(agents.map((m) => [m.id, m]));
+    for (const f of p1.sent.filter((m) => m.type === "presence-delta") as {
+      join?: Pres["members"];
+    }[])
+      for (const m of f.join ?? []) live.set(m.id, m);
+    expect([...live.values()].filter((m) => m.kind === "agent")).toEqual([
+      expect.objectContaining({ id: "a:syform@symubu", label: "syform@symubu" }),
+    ]);
+  });
+
   it("presenceUser lets a subclass name users (and leave them out)", () => {
     class Hub extends ChatHub {
       protected override presenceUser(_ws: Socket, page: { label: string }) {
