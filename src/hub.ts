@@ -562,12 +562,14 @@ export class ChatHub {
    * Who a page is in the presence list: `label` (a display name) and an
    * optional `avatar` (https: or data:image; others are dropped). Override
    * it to resolve the user from your own session; null leaves the page out.
+   * `key` names the person across tabs: pages with the same key (else the
+   * same label) are one member, so N tabs show one avatar.
    * Default: the friend's email, else "you" on the owner's pages.
    */
   protected presenceUser(
     _ws: Socket,
     page: { id: string; thread: string; label: string; email?: string },
-  ): { label: string; avatar?: string } | null {
+  ): { label: string; avatar?: string; key?: string } | null {
     return { label: page.email || (page.thread === OWNER_THREAD ? "you" : "friend") };
   }
 
@@ -586,12 +588,20 @@ export class ChatHub {
     for (const { ws, a } of all) {
       const node = a.node ?? ROOT_NODE;
       const members = new Map<string, PresenceMember>();
+      const mine = this.presenceUser(ws, a);
+      const selfWho = mine ? `u:${mine.key || mine.label}` : undefined;
       for (const p of all) {
         if (p.a.thread !== a.thread || (p.a.node ?? ROOT_NODE) !== node) continue;
         const u = this.presenceUser(p.ws, p.a);
         if (!u) continue;
-        const m = cleanMember({ id: p.a.id, kind: "user", label: u.label, avatar: u.avatar });
-        if (m) members.set(m.id, m);
+        // one member per person: the recipient's own tabs collapse into its
+        // own page id (the box hides itself by it); others get a stable
+        // "u:<key>" id, so a leave is sent only when their last tab closes
+        const who = `u:${u.key || u.label}`;
+        const id = p.ws === ws ? a.id : who;
+        if (p.ws !== ws && (members.has(who) || selfWho === who)) continue;
+        const m = cleanMember({ id, kind: "user", label: u.label, avatar: u.avatar });
+        if (m) members.set(id === a.id ? who : id, m);
       }
       for (const c of ctl) {
         if ((c.a.forUser ?? OWNER_THREAD) !== a.thread) continue;
@@ -606,7 +616,7 @@ export class ChatHub {
         });
         if (m) members.set(m.id, m);
       }
-      const now = new Map([...members].map(([id, m]) => [id, JSON.stringify(m)]));
+      const now = new Map([...members.values()].map((m) => [m.id, JSON.stringify(m)]));
       const last = this.sentPresence.get(ws);
       this.sentPresence.set(ws, { node, members: now });
       if (!last || last.node !== node) {

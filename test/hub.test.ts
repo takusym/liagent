@@ -1946,17 +1946,56 @@ describe("ChatHub: presence", () => {
       node: "/",
       members: [{ id: self(p1), kind: "user", label: "you" }],
     });
+    // A second tab of the same person ("you") is the same member: p1 hears
+    // nothing, p2 sees only itself.
     const p2 = s.page("/b laptop");
-    // p1 hears p2 join as a delta.
-    expect(p1.last("presence-delta")).toMatchObject({
-      node: "/",
-      join: [{ id: self(p2), kind: "user" }],
-    });
+    expect(p1.last("presence-delta")).toBeUndefined();
+    expect(pres(p2).members).toEqual([{ id: self(p2), kind: "user", label: "you" }]);
+  });
+
+  it("users are one member per key across tabs; a leave comes with the last tab", () => {
+    class Hub extends ChatHub {
+      protected override presenceUser(_ws: Socket, page: { label: string }) {
+        const who = page.label.split(" ")[0]!.slice(1);
+        return { label: who.toUpperCase(), key: who };
+      }
+    }
+    const sockets: FakeSocket[] = [];
+    const hub = new Hub(
+      { acceptWebSocket: () => {}, getWebSockets: () => sockets, storage: fakeStorage() },
+      undefined,
+      () => 1,
+      {},
+    );
+    const open = (label: string) => {
+      const ws = new FakeSocket();
+      sockets.push(ws);
+      void hub.connectPage(
+        ws,
+        new URL(`https://example.com/api/chat?label=${encodeURIComponent(label)}`),
+      );
+      return ws;
+    };
+    const me = open("/me 1");
+    const a1 = open("/ann 1");
+    expect(me.last("presence-delta")).toMatchObject({ join: [{ id: "u:ann", label: "ANN" }] });
+    const n = me.sent.length;
+    const a2 = open("/ann 2");
+    open("/me 2");
+    // More tabs of known people: no frames for me; a2 sees itself and one "me".
+    expect(me.sent.slice(n).filter((m) => String(m.type).startsWith("presence"))).toEqual([]);
     expect(
-      pres(p2)
+      pres(a2)
         .members.map((m) => m.id)
         .sort(),
-    ).toEqual([self(p1), self(p2)].sort());
+    ).toEqual([self(a2), "u:me"].sort());
+    // Ann closes one tab: still there; the last one: a leave.
+    sockets.splice(sockets.indexOf(a1), 1);
+    void hub.webSocketClose(a1, 1000);
+    expect(me.sent.slice(n).filter((m) => String(m.type).startsWith("presence"))).toEqual([]);
+    sockets.splice(sockets.indexOf(a2), 1);
+    void hub.webSocketClose(a2, 1000);
+    expect(me.last("presence-delta")).toMatchObject({ leave: ["u:ann"] });
   });
 
   it("agents show as lane@host with lane and host, scoped by node; node changes snapshot and delta", async () => {
@@ -1997,8 +2036,10 @@ describe("ChatHub: presence", () => {
         .map((m) => m.lane)
         .sort(),
     ).toEqual(["reviewer", "writer"]);
-    // p2 left "/": p1 hears it leave.
-    expect(p1.last("presence-delta")).toMatchObject({ leave: [self(p2)] });
+    // p2 (another tab of the same person) left "/": no user leave for p1.
+    expect(
+      p1.sent.some((m) => m.type === "presence-delta" && (m as { leave?: string[] }).leave),
+    ).toBe(false);
     // An agent going away is a delta.
     s.sockets.splice(s.sockets.indexOf(deep), 1);
     await s.hub.webSocketClose(deep, 1000);
