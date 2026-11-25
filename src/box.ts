@@ -561,7 +561,7 @@ img.av { display: block; object-fit: cover; }
 /* 40px targets: the hit area reaches 40px whatever the drawn size. */
 .tap { position: relative; flex: none; width: max(40px, var(--control)); height: var(--control); display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; }
 .tap::before { content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, 40px); height: max(100%, 40px); transform: translate(-50%, -50%); }
-.mark, .treebtn { touch-action: none; cursor: grab; }
+.mark, .treebtn { touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .treebtn { cursor: pointer; }
 .mark .dot { position: absolute; top: 4px; inset-inline-end: 6px; width: 6px; height: 6px; border-radius: 50%; }
 .evals {
