@@ -1330,7 +1330,7 @@ var ChatHub = class {
 				len: m.text.length,
 				...this.head(m.text)
 			});
-			if (page.thread !== OWNER_THREAD) return this.friendChat(ws, page, m.id, m.text, m.context);
+			if (page.thread !== OWNER_THREAD) return this.friendChat(ws, page, m.id, m.text, m.context, m.replyTo);
 			return this.post({
 				id: m.id,
 				from: "owner",
@@ -1400,7 +1400,7 @@ var ChatHub = class {
 	* and more than friendChatMax in a window is dropped (and the page told).
 	* Their first ever message tells the agents ({type:"friend-new"}).
 	*/
-	async friendChat(ws, page, id, text, context) {
+	async friendChat(ws, page, id, text, context, replyTo) {
 		const t = this.now();
 		const userId = page.thread;
 		const rec = await this.ctx.storage.get(friendKey(userId));
@@ -1456,7 +1456,8 @@ var ChatHub = class {
 			at: t,
 			thread: userId,
 			email,
-			...context ? { context } : {}
+			...context ? { context } : {},
+			...replyTo ? { replyTo } : {}
 		});
 	}
 	/** The pages an Allow names: live ones of the answering page's audience; by default that page. */
