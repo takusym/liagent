@@ -713,7 +713,9 @@ textarea::placeholder { color: color-mix(in oklch, currentColor 45%, transparent
 @keyframes drain { to { transform: scaleX(0); } }
 .aim { position: absolute; inset-inline-start: 84px; bottom: 100%; margin-bottom: 4px; max-width: calc(100% - 6rem); display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; }
 .aim > * { pointer-events: auto; }
-.presence { position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%); margin-bottom: 4px; z-index: 2; display: flex; flex-direction: column-reverse; align-items: center; pointer-events: auto; }
+/* Above the mic: the bar's end (trailing mic, the default), its start for a leading mic. */
+.presence { position: absolute; inset-inline-end: 0; bottom: 100%; margin-bottom: 4px; z-index: 2; display: flex; flex-direction: column-reverse; align-items: flex-end; pointer-events: auto; }
+.presence.lead { inset-inline-end: auto; inset-inline-start: 0; align-items: flex-start; }
 .presence[hidden] { display: none; }
 .presence .pstack { display: inline-flex; align-items: center; padding: 2px 4px; border-radius: 12px; background: var(--glass); border: 1px solid var(--line); cursor: pointer; }
 .presence .pstack > .pav + .pav { margin-inline-start: -6px; }
@@ -3869,6 +3871,7 @@ export class ChatBox extends Base {
     const slotted = (micslot as HTMLSlotElement).assignedElements?.().length ?? 0;
     mic.hidden = !slotted || where === "hidden";
     mic.classList.toggle("inside", where === "inside");
+    this.els.presence?.classList.toggle("lead", where === "leading");
     // Moved only when out of place: moving the slot fires slotchange, which renders again.
     const [parent, before] =
       where === "leading"
