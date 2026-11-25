@@ -1661,7 +1661,7 @@ var ChatBox = class extends Base {
 			x: 0,
 			y: 0
 		};
-		this.style.transform = "";
+		this.style.transform = "translate(0px, 0px)";
 		this.write("pos", JSON.stringify(this.pos));
 		this.placeFloat();
 		this.fit();
@@ -1670,9 +1670,10 @@ var ChatBox = class extends Base {
 	/**
 	* After a drag, a reset or a fit: {type:"liagent-move", detail:{x, y,
 	* rect}} with the offset from home and the bar's rect, so the host can
-	* keep its own UI clear.
+	* keep its own UI clear. During a drag, "liagent-moving" (same detail)
+	* fires on each move.
 	*/
-	moved() {
+	moved(type = "liagent-move") {
 		const b = this.els.bar?.getBoundingClientRect();
 		const rect = b ? {
 			left: b.left,
@@ -1680,7 +1681,7 @@ var ChatBox = class extends Base {
 			width: b.width,
 			height: b.height
 		} : null;
-		this.dispatchEvent(new CustomEvent("liagent-move", { detail: {
+		this.dispatchEvent(new CustomEvent(type, { detail: {
 			x: this.pos.x,
 			y: this.pos.y,
 			rect
@@ -2679,6 +2680,7 @@ var ChatBox = class extends Base {
 				y: d.y + Math.max(safeTop - top, Math.min(innerHeight - bar.height - top, dy))
 			};
 			this.style.transform = `translate(${this.pos.x}px, ${this.pos.y}px)`;
+			this.moved("liagent-moving");
 		});
 		const end = () => {
 			const moved = d?.moved;
@@ -4245,4 +4247,4 @@ function defineChatBox(tag = "liagent-chat") {
 
 //#endregion
 export { wheelScrolls as a, parseLegacyCtx as c, olderLines as i, barWheel as n, memoryFiles as o, defineChatBox as r, defaultCtxView as s, ChatBox as t };
-//# sourceMappingURL=box-C3_ubbA4.js.map
+//# sourceMappingURL=box-CJSmZ3ST.js.map
