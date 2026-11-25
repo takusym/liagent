@@ -2061,8 +2061,8 @@ describe("ChatHub: presence", () => {
   it("an agent is one member per lane@host, however many controllers it has", async () => {
     const s = setup();
     const p1 = s.page("/a phone");
-    await agentAt(s, p1, "syform@symubu watching");
-    await agentAt(s, p1, "syform@symubu say");
+    await agentAt(s, p1, "writer@devbox watching");
+    await agentAt(s, p1, "writer@devbox say");
     const agents = pres(p1).members.filter((m) => m.kind === "agent");
     const live = new Map(agents.map((m) => [m.id, m]));
     for (const f of p1.sent.filter((m) => m.type === "presence-delta") as {
@@ -2070,7 +2070,7 @@ describe("ChatHub: presence", () => {
     }[])
       for (const m of f.join ?? []) live.set(m.id, m);
     expect([...live.values()].filter((m) => m.kind === "agent")).toEqual([
-      expect.objectContaining({ id: "a:syform@symubu", label: "syform@symubu" }),
+      expect.objectContaining({ id: "a:writer@devbox", label: "writer@devbox" }),
     ]);
   });
 
