@@ -3006,9 +3006,25 @@ export class ChatBox extends Base {
 
   // ---- open, minimized, panels ------------------------------------------------
 
+  /** Whether the box is open (false: folded to the bar). */
+  get isOpen(): boolean {
+    return this.open;
+  }
+  /** Fold the box to its bar, as the menu's "Minimize" does. */
+  minimize() {
+    this.setPanel("none");
+    this.setOpen(false);
+  }
+  /** Open the box again, as the menu's "Restore" does. */
+  restore() {
+    this.setOpen(true);
+  }
+  /** Open or fold; on a change, {type:"liagent-open", detail:{open}}. */
   private setOpen(v: boolean) {
+    const changed = v !== this.open;
     if (v) this.atEnd = true;
     this.open = v;
+    if (changed) this.dispatchEvent(new CustomEvent("liagent-open", { detail: { open: v } }));
     this.write("open", v ? "1" : "0");
     this.messagesChanged();
     this.renderAll();

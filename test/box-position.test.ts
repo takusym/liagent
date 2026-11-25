@@ -23,6 +23,34 @@ const bare = (attrs: Record<string, string> = {}) => {
   return { box, written, events };
 };
 
+describe("ChatBox open", () => {
+  (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame ??= () => 0;
+  it("minimize/restore fold and open, with liagent-open only on a change", () => {
+    const events: unknown[] = [];
+    const box = Object.assign(Object.create(ChatBox.prototype), {
+      open: true,
+      panel: "menu",
+      write: () => {},
+      setPanel(p: string) {
+        this.panel = p;
+      },
+      messagesChanged: () => {},
+      renderAll: () => {},
+      dispatchEvent: (e: CustomEvent) => void events.push([e.type, e.detail]),
+    }) as unknown as { minimize(): void; restore(): void; isOpen: boolean; panel: string };
+    box.minimize();
+    expect(box.isOpen).toBe(false);
+    expect(box.panel).toBe("none");
+    box.minimize();
+    box.restore();
+    expect(box.isOpen).toBe(true);
+    expect(events).toEqual([
+      ["liagent-open", { open: false }],
+      ["liagent-open", { open: true }],
+    ]);
+  });
+});
+
 describe("ChatBox position", () => {
   it("resetPosition goes home, forgets the drag and says where the bar is", () => {
     const { box, written, events } = bare();
