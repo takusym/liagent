@@ -1342,7 +1342,8 @@ var ChatHub = class {
 				...m.source ? { source: m.source } : {},
 				...m.context ? { context: m.context } : {},
 				...m.attachments ? { attachments: m.attachments } : {},
-				...m.ctx ? { ctx: m.ctx } : {}
+				...m.ctx ? { ctx: m.ctx } : {},
+				...m.replyTo ? { replyTo: m.replyTo } : {}
 			});
 		}
 		if (m.type === "page") {
@@ -1843,7 +1844,7 @@ var ChatHub = class {
 				type: "error",
 				error: "a pairing for a friend cannot chat"
 			});
-			const { text, to, node, agentId, quiet, lang } = m.value;
+			const { text, to, node, agentId, quiet, lang, replyTo } = m.value;
 			const home = c.node ?? ROOT_NODE;
 			const from = m.value.taskPath ?? home;
 			if (!isWithin(from, home)) {
@@ -1885,7 +1886,8 @@ var ChatHub = class {
 					...who ? { agentId: who } : {},
 					...node ? { to: node } : {},
 					...quiet === true ? { quiet: true } : {},
-					...lang ? { lang } : {}
+					...lang ? { lang } : {},
+					...replyTo ? { replyTo } : {}
 				};
 				log({
 					msg: "chat.say",

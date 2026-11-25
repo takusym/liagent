@@ -50,6 +50,20 @@ const PAGES_GONE_MS = 5 * 6e4;
 const isPageId = (v) => typeof v === "string" && /^[A-Za-z0-9_-]{6,64}$/.test(v);
 /** How long a page waits after client-side navigation before reporting it. */
 const PAGE_DEBOUNCE_MS = 300;
+const MAX_REPLY_TEXT = 200;
+/** A replyTo as sent: an id, a who and a text, clipped; anything else is undefined. */
+function cleanReply(v) {
+	const r = v;
+	if (!r || typeof r !== "object") return void 0;
+	const id = typeof r.id === "string" ? r.id.slice(0, 64) : "";
+	const who = typeof r.who === "string" ? r.who.trim().slice(0, MAX_LABEL) : "";
+	const text = typeof r.text === "string" ? r.text.trim().slice(0, MAX_REPLY_TEXT) : "";
+	return id ? {
+		id,
+		who,
+		text
+	} : void 0;
+}
 /** How many times the agent may polish one voice line. */
 const MAX_EDITS = 3;
 /** A message updated by an EditedEvent; any other message is returned as is. */
@@ -131,6 +145,8 @@ function parseControllerMessage(raw) {
 		if (m.quiet === true) value.quiet = true;
 		const lang = langTag(m.lang);
 		if (lang) value.lang = lang;
+		const replyTo = cleanReply(m.replyTo);
+		if (replyTo) value.replyTo = replyTo;
 		return {
 			ok: true,
 			value
@@ -279,6 +295,8 @@ function parsePageMessage(raw) {
 		if (attachments) out.attachments = attachments;
 		const ctx = cleanCtx(m.ctx);
 		if (ctx) out.ctx = ctx;
+		const replyTo = cleanReply(m.replyTo);
+		if (replyTo) out.replyTo = replyTo;
 		return out;
 	}
 	if (m.type === "result") {
@@ -733,5 +751,5 @@ function laneHostOf(label) {
 }
 
 //#endregion
-export { APPROVAL_MS, BUSY_AFTER_REPLY_MS, BUSY_MS, CHAT_HISTORY, CHAT_MS, EVAL_GRANT_MS, MAX_AGENT_ID, MAX_ATTACHMENTS, MAX_ATTACHMENT_NAME, MAX_AVATAR_URL, MAX_CHAT, MAX_CODE, MAX_CONTEXT_FILES, MAX_CONTEXT_PATH, MAX_CONTEXT_TITLE, MAX_CTX, MAX_EDITS, MAX_FILE_NAME, MAX_FILE_TYPE, MAX_FILE_URL, MAX_LABEL, MAX_LANG, MAX_NODE_PATH, MAX_PRESENCE, MAX_PRESENCE_ID, MAX_PRESENCE_NAME, MAX_PRESENCE_TAG, MAX_RESULT, MAX_SELECTION, PAGES_GONE_MS, PAGE_DEBOUNCE_MS, PENDING_MS, ROOT_NODE, agentIdOf, applyEdit, chatText, cleanAttachments, cleanAvatarUrl, cleanContext, cleanCtx, cleanFileName, cleanLabel, cleanMember, commonAncestor, compile, completeNode, dictatedDraft, draftSource, isPageId, isWithin, laneHostOf, langTag, lineNode, matchesTarget, mayAddress, mergeContext, nodeHue, nodePath, parseAddress, parseControllerMessage, parsePageMessage, parsePresence, pathLabel, pickLang, pickVoice, routeTo, shortCode, summarize, trimHistory };
+export { APPROVAL_MS, BUSY_AFTER_REPLY_MS, BUSY_MS, CHAT_HISTORY, CHAT_MS, EVAL_GRANT_MS, MAX_AGENT_ID, MAX_ATTACHMENTS, MAX_ATTACHMENT_NAME, MAX_AVATAR_URL, MAX_CHAT, MAX_CODE, MAX_CONTEXT_FILES, MAX_CONTEXT_PATH, MAX_CONTEXT_TITLE, MAX_CTX, MAX_EDITS, MAX_FILE_NAME, MAX_FILE_TYPE, MAX_FILE_URL, MAX_LABEL, MAX_LANG, MAX_NODE_PATH, MAX_PRESENCE, MAX_PRESENCE_ID, MAX_PRESENCE_NAME, MAX_PRESENCE_TAG, MAX_REPLY_TEXT, MAX_RESULT, MAX_SELECTION, PAGES_GONE_MS, PAGE_DEBOUNCE_MS, PENDING_MS, ROOT_NODE, agentIdOf, applyEdit, chatText, cleanAttachments, cleanAvatarUrl, cleanContext, cleanCtx, cleanFileName, cleanLabel, cleanMember, cleanReply, commonAncestor, compile, completeNode, dictatedDraft, draftSource, isPageId, isWithin, laneHostOf, langTag, lineNode, matchesTarget, mayAddress, mergeContext, nodeHue, nodePath, parseAddress, parseControllerMessage, parsePageMessage, parsePresence, pathLabel, pickLang, pickVoice, routeTo, shortCode, summarize, trimHistory };
 //# sourceMappingURL=protocol.js.map

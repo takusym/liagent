@@ -1,4 +1,4 @@
-import { i as createChat, r as connectVoice } from "./core-DxJBon4x.js";
+import { i as createChat, r as connectVoice } from "./core-D0sEKrQf.js";
 import { hubTransport } from "./client.js";
 import { n as createDraft, t as bindDraft } from "./draft-C7hAOcBf.js";
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";

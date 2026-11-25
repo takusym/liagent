@@ -1,5 +1,5 @@
-import { AttachmentRef, AvatarSrc, ChatContext, ChatMessage, EditedEvent, MessageSource, PageInfo, PairInfo, PresenceDelta, PresenceFrame, PresenceMember, Sender } from "./protocol.js";
-import { b as ChatAction, f as UiStrings, r as SpeakMeta } from "./speak-rules-QC20JIIT.js";
+import { AttachmentRef, AvatarSrc, ChatContext, ChatMessage, EditedEvent, MessageSource, PageInfo, PairInfo, PresenceDelta, PresenceFrame, PresenceMember, ReplyRef, Sender } from "./protocol.js";
+import { b as ChatAction, f as UiStrings, r as SpeakMeta } from "./speak-rules-5qhh2yyZ.js";
 import { a as TreeSource, o as TreeStrings } from "./tree-BIwvNlIR.js";
 import { r as VoicePreference } from "./voice-pick-Dq1Ff99y.js";
 
@@ -19,7 +19,8 @@ type OutboxEntry = Readonly<{
   source?: MessageSource;
   context?: ChatContext;
   attachments?: readonly AttachmentRef[]; /** Host fields from the box's `beforesend` event (see cleanCtx). */
-  ctx?: Record<string, unknown>;
+  ctx?: Record<string, unknown>; /** The line it answers (see cleanReply). */
+  replyTo?: ReplyRef;
   at: number;
   status: "sending" | "failed";
 }>;
@@ -87,7 +88,8 @@ type Chat = {
     source?: MessageSource;
     context?: ChatContext;
     attachments?: readonly AttachmentRef[]; /** Host fields for the line (a plain JSON object; checked by cleanCtx). */
-    ctx?: Record<string, unknown>;
+    ctx?: Record<string, unknown>; /** The line it answers: a quote shown on top of it. */
+    replyTo?: ReplyRef;
   }): boolean; /** Send a failed outbox line again. */
   retry(id: string): boolean; /** Drop an outbox line. */
   dismiss(id: string): void; /** Allow a pairing: from a user's tap only (see the header). False: refused or not sent. */
@@ -359,7 +361,8 @@ declare class ChatBox extends Base {
     source?: MessageSource;
     context?: ChatContext;
     attachments?: AttachmentRef[]; /** Host fields from the `beforesend` event's `detail.extra` (sent as the line's `ctx`). */
-    ctx?: Record<string, unknown>;
+    ctx?: Record<string, unknown>; /** The line it answers (box.replyTo). */
+    replyTo?: ReplyRef;
   }) => boolean;
   /** The user answered a pairing request. */
   onAnswer?: (type: AnswerType, p: PairInfo, answer: Answer) => void;
@@ -433,6 +436,7 @@ declare class ChatBox extends Base {
   private actionSubs;
   /** What goes with the next line, and which actions attached it. */
   private _attached;
+  private _reply;
   private attachedBy;
   /** Quotes shown whole (tapped), by message id ("" = the chip's). */
   private wholeQuotes;
@@ -625,6 +629,21 @@ declare class ChatBox extends Base {
   get attached(): ChatContext | null;
   /** Attach to the next line (merged with what is attached); null drops it all. */
   attach(ctx: ChatContext | null, by?: string): void;
+  /** The line the next line answers (null: none). */
+  get replying(): ReplyRef | null;
+  /**
+   * Answer `line` with the next line: a chip above the input (× cancels),
+   * and the sent line carries `replyTo` {id, who, text}, shown as a quote on
+   * top of it (a tap scrolls to the original). A ChatMessage or a ReplyRef.
+   */
+  replyTo(line: ChatMessage | ReplyRef): void;
+  /** Drop the reply chip: the next line answers nothing. */
+  clearReply(): void;
+  private renderReply;
+  /** A reply's quote: "who text"; a tap scrolls the log to the original and flashes it. */
+  private replyQuote;
+  /** Scroll the log to a line and flash it; false when it is not in the log. */
+  scrollToLine(id: string): boolean;
   /** Open or close the + menu. */
   setActionsMenu(v: boolean): void;
   /** The box's own strings (English, or Chinese on a zh page, under these). */
@@ -942,4 +961,4 @@ declare class ChatBox extends Base {
 declare function defineChatBox(tag?: string): typeof ChatBox;
 //#endregion
 export { parseLegacyCtx as A, HostState as B, FilesUsage as C, CtxRenderer as D, memoryFiles as E, ChatEvents as F, connectVoice as G, RAN_MS as H, ChatOptions as I, createChat as K, ChatSpeaker as L, AllowAnswer as M, CHAT_STRINGS as N, CtxView as O, Chat as P, ChatState as R, FilesListing as S, StoredFile as T, Transport as U, OutboxEntry as V, TransportSink as W, hashId as _, MicPlacement as a, ChatFiles as b, barWheel as c, wheelScrolls as d, pageHint as f, avatarSrcs as g, avatarColors as h, ChatVoice as i, BeforeSendDetail as j, defaultCtxView as k, defineChatBox as l, LineAvatar as m, AnswerType as n, ScrollState as o, when as p, userActive as q, ChatBox as r, TreePlacement as s, Answer as t, olderLines as u, initialOf as v, MemoryFilesOptions as w, FileItemAction as x, lineAvatar as y, ChatStatus as z };
-//# sourceMappingURL=box-CjfLJn4H.d.ts.map
+//# sourceMappingURL=box-BwCIH9hZ.d.ts.map

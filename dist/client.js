@@ -1,5 +1,5 @@
 import { PAGE_DEBOUNCE_MS, compile, parsePresence, summarize } from "./protocol.js";
-import { i as createChat } from "./core-DxJBon4x.js";
+import { i as createChat } from "./core-D0sEKrQf.js";
 
 //#region src/client.ts
 /** Hidden this long before the socket is dropped. */
@@ -214,7 +214,8 @@ function connectHub(box, opts) {
 		source: o?.source,
 		context: o?.context,
 		attachments: o?.attachments,
-		ctx: o?.ctx
+		ctx: o?.ctx,
+		replyTo: o?.replyTo
 	});
 	box.onAnswer = (type, p, answer) => void (type === "deny" ? chat.deny(p.pair) : chat.allow(p.pair, answer));
 	box.onEnd = (p) => void chat.end(p.pair);

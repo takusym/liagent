@@ -1,5 +1,5 @@
 import { PresenceDelta, PresenceFrame } from "./protocol.js";
-import { P as Chat, U as Transport, r as ChatBox } from "./box-CjfLJn4H.js";
+import { P as Chat, U as Transport, r as ChatBox } from "./box-BwCIH9hZ.js";
 
 //#region src/client.d.ts
 /** Hidden this long before the socket is dropped. */

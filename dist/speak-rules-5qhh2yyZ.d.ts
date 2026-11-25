@@ -191,7 +191,9 @@ type UiStrings = {
   items: string; /** The mark on a voice line the agent polished (its tooltip and label). */
   polished: string; /** The + button (its label and tooltip), and the menu's name. */
   attachOpen: string; /** The × on what is attached to the next line. */
-  attachRemove: string; /** The accessible name of the attached selection's quote. */
+  attachRemove: string; /** The reply chip above the input: who is answered; × cancels. */
+  replyingTo: string;
+  replyCancel: string; /** The accessible name of the attached selection's quote. */
   attachQuoted: string; /** A file attached (its accessible prefix). */
   attachFile: string; /** Big hint over the box while files are dragged over it: let go to attach them to the message. */
   attachDrop: string; /** Tooltip of a file chip over the input while it is still being uploaded (a progress bar shows). */
@@ -333,4 +335,4 @@ declare const pageHidden: () => boolean;
 declare const RETIRED_SETTINGS: readonly ["quiet-hours"];
 //#endregion
 export { UploadedFile as A, readSelection as B, PageSelection as C, SelectionDeps as D, SelectionActionOptions as E, isSensitive as F, mediaAction as I, menuGroups as L, actionsAt as M, createSelectionMemory as N, SelectionDoc as O, fileAction as P, oneLine as R, FileActionOptions as S, SENSITIVE as T, selectionAction as V, ActionHost as _, pageHidden as a, ChatAction as b, TREE_ZH as c, UI_ZH as d, UiStrings as f, uiStrings as g, treeDefaults as h, isQuiet as i, actionEnabled as j, SelectionMemory as k, UI_EN as l, isZh as m, Silence as n, silenceFor as o, isJa as p, SpeakMeta as r, TREE_JA as s, RETIRED_SETTINGS as t, UI_JA as u, ActionPlace as v, SELECTION_TTL_MS as w, ElLike as x, CHAT_FENCE as y, pageSelection as z };
-//# sourceMappingURL=speak-rules-QC20JIIT.d.ts.map
+//# sourceMappingURL=speak-rules-5qhh2yyZ.d.ts.map

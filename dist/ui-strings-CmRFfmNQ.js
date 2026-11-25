@@ -1183,6 +1183,8 @@ const UI_EN = {
 	polished: "Polished",
 	attachOpen: "Add or attach",
 	attachRemove: "Remove the attachment",
+	replyingTo: "Replying to",
+	replyCancel: "Cancel the reply",
 	attachQuoted: "Quoted from the page",
 	attachFile: "File",
 	attachDrop: "Drop to attach",
@@ -1278,6 +1280,8 @@ const UI_ZH = {
 	polished: "已润色",
 	attachOpen: "添加或附加",
 	attachRemove: "移除附件",
+	replyingTo: "回复",
+	replyCancel: "取消回复",
 	attachQuoted: "引用自页面",
 	attachFile: "文件",
 	attachDrop: "松手即可附加",
@@ -1394,6 +1398,8 @@ const UI_JA = {
 	polished: "整えました",
 	attachOpen: "追加・添付",
 	attachRemove: "添付を外す",
+	replyingTo: "返信先",
+	replyCancel: "返信をやめる",
 	attachQuoted: "ページからの引用",
 	attachFile: "ファイル",
 	attachDrop: "ドロップして添付",
@@ -1512,4 +1518,4 @@ const treeDefaults = (lang) => isZh(lang) ? TREE_ZH : isJa(lang) ? TREE_JA : {};
 
 //#endregion
 export { TREE_HYSTERESIS as $, frontierView as A, MINIMIZE_FLOAT_MAX_AGE_MS as B, createTapper as C, isSensitive as Ct, MAX_ID_LEN as D, pageSelection as Dt, LONG_PRESS_MS as E, oneLine as Et, placeBox as F, createDwellTimer as G, READ_RATE_LATIN as H, DWELL_FACTOR as I, minimizeFloat as J, createFloatLife as K, DWELL_MIN_MS as L, shownAgentId as M, ANCHOR_GUTTER_PX as N, SHORT_ID_LEN as O, readSelection as Ot, anchorSide as P, TREE_DRAG_CELLS as Q, FADE_MS as R, createLongPress as S, fileAction as St, FRONTIER_ROWS as T, menuGroups as Tt, countUnread as U, READ_RATE_CJK as V, createArrivals as W, MAX_DETENT as X, readTime as Y, TREE_DETENT_PX as Z, DOUBLE_TAP_MS as _, SELECTION_TTL_MS as _t, UI_ZH as a, indexTree as at, createAxisLock as b, actionsAt as bt, treeDefaults as c, maxDetent as ct, WHEEL_LINE_PX as d, snapDetent as dt, TREE_SNAP as et, createSwipeHandoff as f, END_SLACK_PX as ft, AXIS_LOCK_PX as g, CHAT_FENCE as gt, wheelPixels as h, stillAtEnd as ht, UI_JA as i, height as it, shortId as j, countBadge as k, selectionAction as kt, uiStrings as l, treeNav as lt, splitScroll as m, repinEnd as mt, TREE_ZH as n, dragCells as nt, isJa as o, initialNav as ot, scrollRoom as p, atEndAfter as pt, dwellMs as q, UI_EN as r, dragOffset as rt, isZh as s, isVisible as st, TREE_JA as t, TREE_STRETCH as tt, SWIPE_SLOP_PX as u, detentLevel as ut, DRAG_CLICK_MS as v, SENSITIVE as vt, scrubBack as w, mediaAction as wt, createDragFlag as x, createSelectionMemory as xt, SCRUB_STEP_PX as y, actionEnabled as yt, FLOAT_MAX as z };
-//# sourceMappingURL=ui-strings-B115xjDS.js.map
+//# sourceMappingURL=ui-strings-CmRFfmNQ.js.map

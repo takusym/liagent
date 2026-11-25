@@ -95,8 +95,21 @@ type ChatMessage = {
    * Host fields added in the box's `beforesend` event (`detail.extra`): a
    * plain JSON object, at most MAX_CTX characters as JSON. Checked by cleanCtx.
    */
-  ctx?: Record<string, unknown>;
+  ctx?: Record<string, unknown>; /** The line it answers (a quote of it): checked by cleanReply. */
+  replyTo?: ReplyRef;
 };
+/**
+ * A quote of the line a line answers: its id (to scroll to it), who wrote
+ * it and the start of its text (at most MAX_REPLY_TEXT chars).
+ */
+type ReplyRef = {
+  id: string;
+  who: string;
+  text: string;
+};
+declare const MAX_REPLY_TEXT = 200;
+/** A replyTo as sent: an id, a who and a text, clipped; anything else is undefined. */
+declare function cleanReply(v: unknown): ReplyRef | undefined;
 /** Where an owner line came from: "stt" (the box's mic). Absent = typed. */
 type MessageSource = "stt";
 /** An agent's polish of a voice line (ChatMessage.edited). */
@@ -175,7 +188,8 @@ type ControllerMessage = {
   taskPath?: string;
   agentId?: string; /** Never read aloud. Kept only as boolean true. */
   quiet?: true; /** The line's language (BCP-47); dropped unless langTag takes it. */
-  lang?: string;
+  lang?: string; /** The line it answers (cleanReply). */
+  replyTo?: ReplyRef;
 } | {
   type: "busy";
   to?: string;
@@ -218,6 +232,7 @@ type PageMessage = {
   context?: ChatContext;
   attachments?: AttachmentRef[];
   ctx?: Record<string, unknown>;
+  replyTo?: ReplyRef;
 } | {
   type: "result";
   id: string;
@@ -466,5 +481,5 @@ declare function laneHostOf(label: string | undefined): {
   host?: string;
 };
 //#endregion
-export { APPROVAL_MS, AttachmentRef, AvatarSrc, BUSY_AFTER_REPLY_MS, BUSY_MS, CHAT_HISTORY, CHAT_MS, ChatContext, ChatMessage, ContextFile, ControllerMessage, EVAL_GRANT_MS, EditMark, EditedEvent, HubState, MAX_AGENT_ID, MAX_ATTACHMENTS, MAX_ATTACHMENT_NAME, MAX_AVATAR_URL, MAX_CHAT, MAX_CODE, MAX_CONTEXT_FILES, MAX_CONTEXT_PATH, MAX_CONTEXT_TITLE, MAX_CTX, MAX_EDITS, MAX_FILE_NAME, MAX_FILE_TYPE, MAX_FILE_URL, MAX_LABEL, MAX_LANG, MAX_NODE_PATH, MAX_PRESENCE, MAX_PRESENCE_ID, MAX_PRESENCE_NAME, MAX_PRESENCE_TAG, MAX_RESULT, MAX_SELECTION, MessageSource, NodeGrant, PAGES_GONE_MS, PAGE_DEBOUNCE_MS, PENDING_MS, PageInfo, PageMessage, PairInfo, PresenceDelta, PresenceFrame, PresenceMember, ROOT_NODE, Scope, Sender, agentIdOf, applyEdit, chatText, cleanAttachments, cleanAvatarUrl, cleanContext, cleanCtx, cleanFileName, cleanLabel, cleanMember, commonAncestor, compile, completeNode, dictatedDraft, draftSource, isPageId, isWithin, laneHostOf, langTag, lineNode, matchesTarget, mayAddress, mergeContext, nodeHue, nodePath, parseAddress, parseControllerMessage, parsePageMessage, parsePresence, pathLabel, pickLang, pickVoice, routeTo, shortCode, summarize, trimHistory };
+export { APPROVAL_MS, AttachmentRef, AvatarSrc, BUSY_AFTER_REPLY_MS, BUSY_MS, CHAT_HISTORY, CHAT_MS, ChatContext, ChatMessage, ContextFile, ControllerMessage, EVAL_GRANT_MS, EditMark, EditedEvent, HubState, MAX_AGENT_ID, MAX_ATTACHMENTS, MAX_ATTACHMENT_NAME, MAX_AVATAR_URL, MAX_CHAT, MAX_CODE, MAX_CONTEXT_FILES, MAX_CONTEXT_PATH, MAX_CONTEXT_TITLE, MAX_CTX, MAX_EDITS, MAX_FILE_NAME, MAX_FILE_TYPE, MAX_FILE_URL, MAX_LABEL, MAX_LANG, MAX_NODE_PATH, MAX_PRESENCE, MAX_PRESENCE_ID, MAX_PRESENCE_NAME, MAX_PRESENCE_TAG, MAX_REPLY_TEXT, MAX_RESULT, MAX_SELECTION, MessageSource, NodeGrant, PAGES_GONE_MS, PAGE_DEBOUNCE_MS, PENDING_MS, PageInfo, PageMessage, PairInfo, PresenceDelta, PresenceFrame, PresenceMember, ROOT_NODE, ReplyRef, Scope, Sender, agentIdOf, applyEdit, chatText, cleanAttachments, cleanAvatarUrl, cleanContext, cleanCtx, cleanFileName, cleanLabel, cleanMember, cleanReply, commonAncestor, compile, completeNode, dictatedDraft, draftSource, isPageId, isWithin, laneHostOf, langTag, lineNode, matchesTarget, mayAddress, mergeContext, nodeHue, nodePath, parseAddress, parseControllerMessage, parsePageMessage, parsePresence, pathLabel, pickLang, pickVoice, routeTo, shortCode, summarize, trimHistory };
 //# sourceMappingURL=protocol.d.ts.map

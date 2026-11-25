@@ -1,8 +1,8 @@
-import { MAX_ATTACHMENTS, MAX_CHAT, ROOT_NODE, cleanAvatarUrl, cleanCtx, cleanFileName, completeNode, dictatedDraft, draftSource, langTag, lineNode, mergeContext, nodePath, parseAddress, pathLabel, pickLang } from "./protocol.js";
+import { MAX_ATTACHMENTS, MAX_CHAT, ROOT_NODE, cleanAvatarUrl, cleanCtx, cleanFileName, cleanReply, completeNode, dictatedDraft, draftSource, langTag, lineNode, mergeContext, nodePath, parseAddress, pathLabel, pickLang } from "./protocol.js";
 import { i as silenceFor, r as pageHidden, t as RETIRED_SETTINGS } from "./speak-rules-CuM1k5aH.js";
-import { i as createChat } from "./core-DxJBon4x.js";
+import { i as createChat } from "./core-D0sEKrQf.js";
 import { a as lineAvatar, i as initialOf, o as pageHint, s as when, t as avatarColors } from "./avatar-BHTNm21C.js";
-import { A as frontierView, C as createTapper, E as LONG_PRESS_MS, Et as oneLine, F as placeBox, J as minimizeFloat, K as createFloatLife, M as shownAgentId, R as FADE_MS, S as createLongPress, T as FRONTIER_ROWS, Tt as menuGroups, U as countUnread, W as createArrivals, at as indexTree, b as createAxisLock, bt as actionsAt, c as treeDefaults, ct as maxDetent, f as createSwipeHandoff, h as wheelPixels, j as shortId, k as countBadge, l as uiStrings, lt as treeNav, m as splitScroll, mt as repinEnd, nt as dragCells, ot as initialNav, pt as atEndAfter, q as dwellMs, rt as dragOffset, st as isVisible, x as createDragFlag, yt as actionEnabled, z as FLOAT_MAX } from "./ui-strings-B115xjDS.js";
+import { A as frontierView, C as createTapper, E as LONG_PRESS_MS, Et as oneLine, F as placeBox, J as minimizeFloat, K as createFloatLife, M as shownAgentId, R as FADE_MS, S as createLongPress, T as FRONTIER_ROWS, Tt as menuGroups, U as countUnread, W as createArrivals, at as indexTree, b as createAxisLock, bt as actionsAt, c as treeDefaults, ct as maxDetent, f as createSwipeHandoff, h as wheelPixels, j as shortId, k as countBadge, l as uiStrings, lt as treeNav, m as splitScroll, mt as repinEnd, nt as dragCells, ot as initialNav, pt as atEndAfter, q as dwellMs, rt as dragOffset, st as isVisible, x as createDragFlag, yt as actionEnabled, z as FLOAT_MAX } from "./ui-strings-CmRFfmNQ.js";
 import { o as aecOn, s as applyAec } from "./aec-HSHx-slU.js";
 import { a as autoSend, c as partialTail, i as afterChange, n as DEBOUNCE_MS, o as enterSends, s as lineBreakSends } from "./input-BEw-AxAo.js";
 import { r as countOpen, s as frontier } from "./state-tree-DMR7TmHF.js";
@@ -1002,6 +1002,12 @@ textarea::placeholder { color: color-mix(in oklch, currentColor 45%, transparent
 /* Inside the glass: the rail alone, no tinted box of its own. */
 .box.typing .attached { border-radius: 0; background: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
 .attached .what { flex: 1; min-width: 0; }
+/* A reply: the quote on top of a line (tap: to the original) and the chip above the input. */
+.rq { all: unset; display: block; cursor: pointer; margin: 0 0 2px; padding: 0 0 0 6px; border-inline-start: 2px solid var(--accent, currentColor); font-size: 11px; line-height: 1.3; opacity: .75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.rq .rw { font-weight: 600; margin-inline-end: 4px; }
+.log li.flash { animation: rqflash 1.2s ease-out; }
+@keyframes rqflash { from { background: oklch(0.7 0.15 260 / .35); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .log li.flash { animation: none; outline: 1px solid var(--accent, currentColor); } }
 .attached .x { all: unset; cursor: pointer; flex: none; padding: 0 6px; color: var(--muted); font-size: 13px; line-height: 1.35; }
 .ctx { all: unset; pointer-events: auto; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-width: 1.4em; height: 1.4em; margin-inline-end: 4px; border-radius: 999px; font-size: 11px; line-height: 1; vertical-align: middle; background: color-mix(in oklch, var(--accent) 14%, transparent); }
 .ctx:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -1302,6 +1308,7 @@ var ChatBox = class extends Base {
 	actionSubs = [];
 	/** What goes with the next line, and which actions attached it. */
 	_attached = null;
+	_reply = null;
 	attachedBy = /* @__PURE__ */ new Set();
 	/** Quotes shown whole (tapped), by message id ("" = the chip's). */
 	wholeQuotes = /* @__PURE__ */ new Set();
@@ -1712,6 +1719,86 @@ var ChatBox = class extends Base {
 		}
 		this.wholeQuotes.delete("");
 		this.renderAttached();
+	}
+	/** The line the next line answers (null: none). */
+	get replying() {
+		return this._reply;
+	}
+	/**
+	* Answer `line` with the next line: a chip above the input (× cancels),
+	* and the sent line carries `replyTo` {id, who, text}, shown as a quote on
+	* top of it (a tap scrolls to the original). A ChatMessage or a ReplyRef.
+	*/
+	replyTo(line) {
+		const who = "from" in line ? lineAvatar(line, {
+			friend: this._friend,
+			user: this._user,
+			agentAvatar: this._agentAvatar,
+			avatarFor: this.avatarFor
+		}).name : line.who;
+		this._reply = cleanReply({
+			id: line.id,
+			who,
+			text: line.text
+		}) ?? null;
+		this.renderReply();
+		if (this._reply) this.els.input?.focus();
+	}
+	/** Drop the reply chip: the next line answers nothing. */
+	clearReply() {
+		this._reply = null;
+		this.renderReply();
+	}
+	renderReply() {
+		const row = this.els.replyrow;
+		if (!row) return;
+		row.replaceChildren();
+		row.hidden = !this._reply || !this.open;
+		if (!this._reply) return;
+		const chip = document.createElement("div");
+		chip.className = "attached";
+		const what = document.createElement("div");
+		what.className = "what";
+		what.append(this.replyQuote(this._reply, this.ui.replyingTo));
+		const x = document.createElement("button");
+		x.type = "button";
+		x.className = "x";
+		x.textContent = "×";
+		x.setAttribute("aria-label", this.ui.replyCancel);
+		x.addEventListener("pointerdown", keepFocus);
+		x.addEventListener("click", () => this.clearReply());
+		chip.append(what, x);
+		row.append(chip);
+	}
+	/** A reply's quote: "who text"; a tap scrolls the log to the original and flashes it. */
+	replyQuote(r, lead) {
+		const q = document.createElement("button");
+		q.type = "button";
+		q.className = "rq";
+		const w = document.createElement("span");
+		w.className = "rw";
+		w.textContent = lead ? `${lead} ${r.who}` : r.who;
+		q.append(w, r.text);
+		q.title = r.text;
+		q.addEventListener("pointerdown", keepFocus);
+		q.addEventListener("click", (e) => {
+			e.stopPropagation();
+			this.scrollToLine(r.id);
+		});
+		return q;
+	}
+	/** Scroll the log to a line and flash it; false when it is not in the log. */
+	scrollToLine(id) {
+		const li = [...this.els.log?.querySelectorAll("li[data-id]") ?? []].find((x) => x.dataset.id === id);
+		if (!li) return false;
+		li.scrollIntoView?.({
+			block: "center",
+			behavior: "smooth"
+		});
+		li.classList.remove("flash");
+		li.offsetWidth;
+		li.classList.add("flash");
+		return true;
 	}
 	/** Open or close the + menu. */
 	setActionsMenu(v) {
@@ -2405,6 +2492,7 @@ var ChatBox = class extends Base {
   <div class="warn" id="warn" role="alert" hidden></div>
   <div class="asks" id="asks" aria-label="Agent connections"></div>
   <div class="attrow" id="att" hidden></div>
+  <div class="attrow" id="replyrow" hidden></div>
   <div class="filerow" id="filerow" hidden></div>
   <div class="rowbox" id="rowbox">
     <div class="aim" id="aim" hidden></div>
@@ -2947,11 +3035,13 @@ var ChatBox = class extends Base {
 		});
 		if (!this.dispatchEvent(before)) return false;
 		const ctx = cleanCtx(before.detail.extra);
-		const opts = source || context || attachments.length || ctx ? {
+		const replyTo = this._reply ?? void 0;
+		const opts = source || context || attachments.length || ctx || replyTo ? {
 			...source ? { source } : {},
 			...context ? { context } : {},
 			...attachments.length ? { attachments } : {},
-			...ctx ? { ctx } : {}
+			...ctx ? { ctx } : {},
+			...replyTo ? { replyTo } : {}
 		} : void 0;
 		if (!this.onSend?.(text, to, opts)) {
 			this.offline = true;
@@ -2959,6 +3049,7 @@ var ChatBox = class extends Base {
 			return false;
 		}
 		this.offline = false;
+		if (replyTo) this.clearReply();
 		if (this.pendingFiles.get().length) this.pendingFiles.take();
 		if (context) {
 			for (const a of this._actions) if (this.attachedBy.has(a.id)) a.sent?.();
@@ -3264,6 +3355,7 @@ var ChatBox = class extends Base {
 		box.classList.toggle("typing", this.typing && this.open);
 		if (wasOn !== box.classList.contains("on") && this.collapsedCount && this.atEnd) requestAnimationFrame(() => this.toEnd());
 		this.renderAttached();
+		this.renderReply();
 		this.renderFiles();
 		column.hidden = !this.open;
 		slot.toggleAttribute("inert", !this.open);
@@ -3564,6 +3656,7 @@ var ChatBox = class extends Base {
 			const sr = document.createElement("span");
 			sr.className = "sr";
 			sr.textContent = node ? `${who.name} (${node.subtitle}): ` : `${who.name}: `;
+			if (m.replyTo) text.append(this.replyQuote(m.replyTo));
 			const ch = channelFor(this._channelOf, m);
 			if (ch) text.append(channelTagEl(document, ch));
 			text.append(sr, ...this.lineBody(m, () => {
@@ -4266,4 +4359,4 @@ function defineChatBox(tag = "liagent-chat") {
 
 //#endregion
 export { wheelScrolls as a, parseLegacyCtx as c, olderLines as i, barWheel as n, memoryFiles as o, defineChatBox as r, defaultCtxView as s, ChatBox as t };
-//# sourceMappingURL=box-BnNHOYQn.js.map
+//# sourceMappingURL=box-C2Wd3y69.js.map

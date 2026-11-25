@@ -1,4 +1,4 @@
-import { BUSY_AFTER_REPLY_MS, BUSY_MS, applyEdit, chatText, cleanCtx, trimHistory } from "./protocol.js";
+import { BUSY_AFTER_REPLY_MS, BUSY_MS, applyEdit, chatText, cleanCtx, cleanReply, trimHistory } from "./protocol.js";
 import { i as silenceFor, r as pageHidden } from "./speak-rules-CuM1k5aH.js";
 
 //#region src/core.ts
@@ -171,7 +171,8 @@ function createChat(opts = {}) {
 		...e.source ? { source: e.source } : {},
 		...e.context ? { context: e.context } : {},
 		...e.attachments?.length ? { attachments: e.attachments } : {},
-		...e.ctx ? { ctx: e.ctx } : {}
+		...e.ctx ? { ctx: e.ctx } : {},
+		...e.replyTo ? { replyTo: e.replyTo } : {}
 	});
 	const sink = {
 		receive,
@@ -216,6 +217,7 @@ function createChat(opts = {}) {
 			const t = chatText(text);
 			if (!t) return false;
 			const ctx = cleanCtx(o.ctx);
+			const replyTo = cleanReply(o.replyTo);
 			const e = {
 				id: newId(),
 				text: t,
@@ -223,7 +225,8 @@ function createChat(opts = {}) {
 				...o.source ? { source: o.source } : {},
 				...o.context ? { context: o.context } : {},
 				...o.attachments?.length ? { attachments: o.attachments } : {},
-				...ctx ? { ctx } : {}
+				...ctx ? { ctx } : {},
+				...replyTo ? { replyTo } : {}
 			};
 			if (!sendLine(e)) return false;
 			setOutbox((x) => [...x, {
@@ -320,4 +323,4 @@ function connectVoice(chat, v, opts = {}) {
 
 //#endregion
 export { userActive as a, createChat as i, RAN_MS as n, connectVoice as r, CHAT_STRINGS as t };
-//# sourceMappingURL=core-DxJBon4x.js.map
+//# sourceMappingURL=core-D0sEKrQf.js.map
