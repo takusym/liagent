@@ -364,6 +364,7 @@ effect.
 | `micPlacement`   | `"trailing" \| "leading" \| "inside" \| "hidden"`      | Where the slotted mic goes: the bar's end (default), its start (after the mark), inside the input's cell (it folds away with the input when minimized), or not shown. Attribute: `mic-placement`.                                                       |
 | `treePlacement`  | `"leading" \| "menu" \| "hidden"`                      | The tree button on the bar (default), as a + menu row, or not at all. Attribute: `tree-placement`.                                                                                                                                                      |
 | `collapsedCount` | `number`                                               | While the box is not in use, only the last N lines show; focus inside it, a mic on (`micActive`) or an open panel shows the full log. 0 (default) = always the full log. Attribute: `collapsed-count`.                                                  |
+| `clampTop`       | `number`                                               | Extra px kept free at the top (below the notch) when the box is dragged or brought back on screen, e.g. the host's header. 0 (default) = none. Attribute: `clamp-top`.                                                                                  |
 | `channelOf`      | `(m: ChatMessage) => { label, color, world? } \| null` | Each history line's channel, decided by the host (say, from `m.to` or `m.taskPath`): a 【label】 tag in that CSS colour before the line, on the floating lines too; null puts none. `world: true` marks the world channel. Unset: no tags.              |
 | `channelFilter`  | `string \| null`                                       | Shows only the lines whose `channelOf(m).label` is this, plus the world lines, in the log and the floating lines; a filter that hides every line says so in the log (`hintFiltered`). null (default) = every line.                                      |
 | `voicePrefer`    | `VoicePreference`                                      | `{ lang?, prefer? }`: the `speechSynthesis` voice when `voice` is not set. `lang` forces the language; `prefer` lists voice names to try first. See [The voice](#the-voice-lang-and-prefer).                                                            |
@@ -459,6 +460,7 @@ name from a visually hidden span instead.
 - `hold`: the same as `hold` (watched).
 - `mic-placement`, `tree-placement`: the same as the properties (watched).
 - `collapsed-count`: the same as the property (watched).
+- `clamp-top`: the same as the property (watched).
 - `no-echo-toggle` (property `echoToggle = false`, watched): hides the menu's
   echo-cancellation row, for a host that decides the mic's processing itself.
 - `keep-scroll`: the box keeps where the log is scrolled (under its
@@ -1269,3 +1271,8 @@ Session methods: `speak`, `stop`, `reply(text) → boolean`, `resume()`,
 `interrupt(why)`, `state()` (`{ mic, speaking, hold, ducked, queued, paused }`),
 `subscribe(f)`, `echoCheck(text, durationMs)`, and the mic's hooks
 (`setMic`, `userSpeech`, `userIdle`, `userFrame`, `echoDropped`, `unlock`).
+
+### Position
+
+- `box.resetPosition()` moves the box back to its home corner (bottom right) and forgets the dragged position. The menu shows "Reset position" while the box is off home.
+- `liagent-move` (`detail: {x, y, rect}`) fires after a drag, a reset or a fit: `x`/`y` are the offset from home, `rect` is the bar's on-screen rect.

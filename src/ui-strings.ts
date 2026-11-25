@@ -158,6 +158,8 @@ export type UiStrings = {
   minimize: string;
   /** Menu. */
   restore: string;
+  /** Menu: move the box back to its home corner. */
+  resetPosition: string;
   /** The mark's label. */
   minimizeChat: string;
   /** The mark's label. */
@@ -266,6 +268,7 @@ export const UI_EN: UiStrings = {
   silent: "Replies silent",
   minimize: "–  Minimize",
   restore: "+  Restore",
+  resetPosition: "↘  Reset position",
   minimizeChat: "Minimize chat",
   restoreChat: "Restore chat",
   restoreChatNew: "Restore chat, {n} new",
@@ -361,6 +364,7 @@ export const UI_ZH: UiStrings = {
   silent: "不朗读回复",
   minimize: "–  最小化",
   restore: "+  还原",
+  resetPosition: "↘  重置位置",
   minimizeChat: "最小化聊天",
   restoreChat: "还原聊天",
   restoreChatNew: "还原聊天，{n} 条新消息",
@@ -480,6 +484,7 @@ export const UI_JA: UiStrings = {
   silent: "返信を読み上げない",
   minimize: "–  最小化",
   restore: "+  元に戻す",
+  resetPosition: "↘  位置をリセット",
   minimizeChat: "チャットを最小化",
   restoreChat: "チャットを元に戻す",
   restoreChatNew: "チャットを元に戻す（新着 {n} 件）",

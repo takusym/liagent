@@ -906,6 +906,7 @@ export class ChatBox extends Base {
       "all-pages",
       "no-echo-toggle",
       "collapsed-count",
+      "clamp-top",
     ];
   }
   /**
@@ -1346,6 +1347,42 @@ export class ChatBox extends Base {
     if (v > 0) this.setAttribute("collapsed-count", String(Math.floor(v)));
     else this.removeAttribute("collapsed-count");
   }
+  /**
+   * Extra px kept free at the top (below the notch) when the box is dragged
+   * or brought back on screen, e.g. the host's own header. Attribute: clamp-top.
+   */
+  get clampTop(): number {
+    const n = Number(this.getAttribute?.("clamp-top"));
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }
+  set clampTop(v: number) {
+    if (v > 0) this.setAttribute("clamp-top", String(v));
+    else this.removeAttribute("clamp-top");
+  }
+  /**
+   * Move the box back to its home corner (bottom right) and forget the
+   * dragged position. Also in the menu ("Reset position").
+   */
+  resetPosition() {
+    this.pos = { x: 0, y: 0 };
+    this.style.transform = "";
+    this.write("pos", JSON.stringify(this.pos));
+    this.placeFloat();
+    this.fit();
+    this.moved();
+  }
+  /**
+   * After a drag, a reset or a fit: {type:"liagent-move", detail:{x, y,
+   * rect}} with the offset from home and the bar's rect, so the host can
+   * keep its own UI clear.
+   */
+  private moved() {
+    const b = this.els.bar?.getBoundingClientRect();
+    const rect = b ? { left: b.left, top: b.top, width: b.width, height: b.height } : null;
+    this.dispatchEvent(
+      new CustomEvent("liagent-move", { detail: { x: this.pos.x, y: this.pos.y, rect } }),
+    );
+  }
   /** Where the tree button goes. Attribute: tree-placement. */
   get treePlacement(): TreePlacement {
     const v = this.getAttribute?.("tree-placement") as TreePlacement | null;
@@ -1539,6 +1576,7 @@ export class ChatBox extends Base {
     else if (name === "all-pages") this.applyAllPages(this.hasAttribute("all-pages"));
     else if (name === "no-echo-toggle") this.renderMenu();
     else if (name === "collapsed-count") this.renderLog();
+    else if (name === "clamp-top") this.fit();
     else this.renderActions();
   }
   private applyAllPages(v: boolean) {
@@ -2421,7 +2459,7 @@ export class ChatBox extends Base {
       const bar = this.els.bar!.getBoundingClientRect();
       const left = bar.left - (this.pos.x - d.x);
       const top = bar.top - (this.pos.y - d.y);
-      const safeTop = safeInsets().top;
+      const safeTop = safeInsets().top + this.clampTop;
       this.pos = {
         x: d.x + Math.max(-left, Math.min(innerWidth - bar.width - left, dx)),
         y: d.y + Math.max(safeTop - top, Math.min(innerHeight - bar.height - top, dy)),
@@ -2436,6 +2474,7 @@ export class ChatBox extends Base {
       this.markDrag.dragEnded();
       this.write("pos", JSON.stringify(this.pos));
       this.placeFloat();
+      this.moved();
     };
     el.addEventListener("pointerup", end);
     el.addEventListener("pointercancel", () => {
@@ -2459,7 +2498,7 @@ export class ChatBox extends Base {
     const box = this.els.box?.getBoundingClientRect();
     if (!bar || !box || !bar.width) return;
     const row = this.open ? box : bar;
-    const top = safeInsets().top;
+    const top = safeInsets().top + this.clampTop;
     const dx = row.left < 0 ? -row.left : row.right > innerWidth ? innerWidth - row.right : 0;
     const dy =
       bar.top < top ? top - bar.top : bar.bottom > innerHeight ? innerHeight - bar.bottom : 0;
@@ -2467,6 +2506,7 @@ export class ChatBox extends Base {
     this.pos = { x: this.pos.x + dx, y: this.pos.y + dy };
     this.style.transform = `translate(${this.pos.x}px, ${this.pos.y}px)`;
     this.write("pos", JSON.stringify(this.pos));
+    this.moved();
   }
 
   /**
@@ -3987,6 +4027,18 @@ export class ChatBox extends Base {
       this.setOpen(!this.open);
     });
     menu.append(min);
+    // Back to the home corner (a double tap opens this menu, so no gesture for it).
+    if (this.pos.x || this.pos.y) {
+      const home = document.createElement("button");
+      home.type = "button";
+      home.setAttribute("role", "menuitem");
+      home.textContent = this.ui.resetPosition;
+      home.addEventListener("click", () => {
+        this.setPanel("none");
+        this.resetPosition();
+      });
+      menu.append(home);
+    }
     for (const x of this._sessions) {
       const row = document.createElement("div");
       row.className = "sess";
