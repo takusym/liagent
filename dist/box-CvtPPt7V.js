@@ -3181,9 +3181,25 @@ var ChatBox = class extends Base {
 			list.replaceChildren(head, ...v.all.map((m) => this.presenceRow(m, true)));
 		} else list.replaceChildren();
 	}
+	/** Whether the box is open (false: folded to the bar). */
+	get isOpen() {
+		return this.open;
+	}
+	/** Fold the box to its bar, as the menu's "Minimize" does. */
+	minimize() {
+		this.setPanel("none");
+		this.setOpen(false);
+	}
+	/** Open the box again, as the menu's "Restore" does. */
+	restore() {
+		this.setOpen(true);
+	}
+	/** Open or fold; on a change, {type:"liagent-open", detail:{open}}. */
 	setOpen(v) {
+		const changed = v !== this.open;
 		if (v) this.atEnd = true;
 		this.open = v;
+		if (changed) this.dispatchEvent(new CustomEvent("liagent-open", { detail: { open: v } }));
 		this.write("open", v ? "1" : "0");
 		this.messagesChanged();
 		this.renderAll();
@@ -4247,4 +4263,4 @@ function defineChatBox(tag = "liagent-chat") {
 
 //#endregion
 export { wheelScrolls as a, parseLegacyCtx as c, olderLines as i, barWheel as n, memoryFiles as o, defineChatBox as r, defaultCtxView as s, ChatBox as t };
-//# sourceMappingURL=box-CJSmZ3ST.js.map
+//# sourceMappingURL=box-CvtPPt7V.js.map
