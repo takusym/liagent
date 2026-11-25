@@ -1365,7 +1365,7 @@ export class ChatBox extends Base {
    */
   resetPosition() {
     this.pos = { x: 0, y: 0 };
-    this.style.transform = "";
+    this.style.transform = "translate(0px, 0px)";
     this.write("pos", JSON.stringify(this.pos));
     this.placeFloat();
     this.fit();
@@ -1374,14 +1374,13 @@ export class ChatBox extends Base {
   /**
    * After a drag, a reset or a fit: {type:"liagent-move", detail:{x, y,
    * rect}} with the offset from home and the bar's rect, so the host can
-   * keep its own UI clear.
+   * keep its own UI clear. During a drag, "liagent-moving" (same detail)
+   * fires on each move.
    */
-  private moved() {
+  private moved(type = "liagent-move") {
     const b = this.els.bar?.getBoundingClientRect();
     const rect = b ? { left: b.left, top: b.top, width: b.width, height: b.height } : null;
-    this.dispatchEvent(
-      new CustomEvent("liagent-move", { detail: { x: this.pos.x, y: this.pos.y, rect } }),
-    );
+    this.dispatchEvent(new CustomEvent(type, { detail: { x: this.pos.x, y: this.pos.y, rect } }));
   }
   /** Where the tree button goes. Attribute: tree-placement. */
   get treePlacement(): TreePlacement {
@@ -2465,6 +2464,7 @@ export class ChatBox extends Base {
         y: d.y + Math.max(safeTop - top, Math.min(innerHeight - bar.height - top, dy)),
       };
       this.style.transform = `translate(${this.pos.x}px, ${this.pos.y}px)`;
+      this.moved("liagent-moving");
     });
     const end = () => {
       const moved = d?.moved;

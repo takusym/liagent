@@ -28,7 +28,7 @@ describe("ChatBox position", () => {
     const { box, written, events } = bare();
     box.resetPosition();
     expect(box.pos).toEqual({ x: 0, y: 0 });
-    expect(box.style.transform).toBe("");
+    expect(box.style.transform).toBe("translate(0px, 0px)");
     expect(JSON.parse(written.pos!)).toEqual({ x: 0, y: 0 });
     expect(events).toEqual([
       {

@@ -1275,4 +1275,4 @@ Session methods: `speak`, `stop`, `reply(text) → boolean`, `resume()`,
 ### Position
 
 - `box.resetPosition()` moves the box back to its home corner (bottom right) and forgets the dragged position. The menu shows "Reset position" while the box is off home.
-- `liagent-move` (`detail: {x, y, rect}`) fires after a drag, a reset or a fit: `x`/`y` are the offset from home, `rect` is the bar's on-screen rect.
+- `liagent-move` (`detail: {x, y, rect}`) fires after a drag, a reset or a fit: `x`/`y` are the offset from home, `rect` is the bar's on-screen rect. `liagent-moving` (same detail) fires on each pointer move during a drag, for host UI that follows the box live.
