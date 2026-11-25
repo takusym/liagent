@@ -726,6 +726,21 @@ describe("ChatHub friends", () => {
     expect(chats(c).at(-1)?.attachments).toBeUndefined();
   });
 
+  it("a friend's line keeps its replyTo", async () => {
+    const s = setup();
+    const owner = s.page();
+    const { c } = await agent(s, owner);
+    const f = await s.friend();
+    await s.msg(f, {
+      type: "chat",
+      id: "b",
+      text: "yes",
+      replyTo: { id: "q", who: "A", text: "ok?" },
+    });
+    expect(chats(c).at(-1)?.replyTo).toEqual({ id: "q", who: "A", text: "ok?" });
+    expect(chats(f).at(-1)?.replyTo).toEqual({ id: "q", who: "A", text: "ok?" });
+  });
+
   it("a friend's first message tells the agent once", async () => {
     const s = setup();
     const owner = s.page();

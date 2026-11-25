@@ -1286,4 +1286,4 @@ Session methods: `speak`, `stop`, `reply(text) → boolean`, `resume()`,
 
 - `box.replyTo(line)` (a `ChatMessage`, or `{id, who, text}`) shows a reply chip above the input (× or `box.clearReply()` cancels; `box.replying` reads it). The next line sent carries `replyTo: {id, who, text}` (text clipped to 200 chars), and the chip clears.
 - A line with `replyTo` shows a quote on top of it; a tap scrolls the log to the original (`box.scrollToLine(id)`) and flashes it.
-- Headless: `chat.send(text, { replyTo })`. Agents: `{type:"say", text, replyTo}`. The hub keeps `replyTo` on the stored line (checked by `cleanReply`, from `liagent/protocol`).
+- Headless: `chat.send(text, { replyTo })`. Agents: `{type:"say", text, replyTo}`. The hub keeps `replyTo` on the stored line (owner, friend and agent lines) (checked by `cleanReply`, from `liagent/protocol`).

@@ -110,6 +110,7 @@ import {
   EVAL_GRANT_MS,
   CHAT_MS,
   type ChatContext,
+  type ReplyRef,
   type ChatMessage,
   type EditedEvent,
   type HubState,
@@ -1117,7 +1118,8 @@ export class ChatHub {
         len: m.text.length,
         ...this.head(m.text),
       });
-      if (page.thread !== OWNER_THREAD) return this.friendChat(ws, page, m.id, m.text, m.context);
+      if (page.thread !== OWNER_THREAD)
+        return this.friendChat(ws, page, m.id, m.text, m.context, m.replyTo);
       return this.post({
         id: m.id,
         from: "owner",
@@ -1191,6 +1193,7 @@ export class ChatHub {
     id: string,
     text: string,
     context?: ChatContext,
+    replyTo?: ReplyRef,
   ) {
     const t = this.now();
     const userId = page.thread;
@@ -1232,6 +1235,7 @@ export class ChatHub {
       thread: userId,
       email,
       ...(context ? { context } : {}),
+      ...(replyTo ? { replyTo } : {}),
     });
   }
 
