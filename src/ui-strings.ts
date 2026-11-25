@@ -20,6 +20,9 @@ export type UiStrings = {
   attachOpen: string;
   /** The × on what is attached to the next line. */
   attachRemove: string;
+  /** The reply chip above the input: who is answered; × cancels. */
+  replyingTo: string;
+  replyCancel: string;
   /** The accessible name of the attached selection's quote. */
   attachQuoted: string;
   /** A file attached (its accessible prefix). */
@@ -198,6 +201,8 @@ export const UI_EN: UiStrings = {
   polished: "Polished",
   attachOpen: "Add or attach",
   attachRemove: "Remove the attachment",
+  replyingTo: "Replying to",
+  replyCancel: "Cancel the reply",
   attachQuoted: "Quoted from the page",
   attachFile: "File",
   attachDrop: "Drop to attach",
@@ -295,6 +300,8 @@ export const UI_ZH: UiStrings = {
   polished: "已润色",
   attachOpen: "添加或附加",
   attachRemove: "移除附件",
+  replyingTo: "回复",
+  replyCancel: "取消回复",
   attachQuoted: "引用自页面",
   attachFile: "文件",
   attachDrop: "松手即可附加",
@@ -413,6 +420,8 @@ export const UI_JA: UiStrings = {
   polished: "整えました",
   attachOpen: "追加・添付",
   attachRemove: "添付を外す",
+  replyingTo: "返信先",
+  replyCancel: "返信をやめる",
   attachQuoted: "ページからの引用",
   attachFile: "ファイル",
   attachDrop: "ドロップして添付",

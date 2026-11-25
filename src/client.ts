@@ -288,6 +288,7 @@ export function connectHub(box: ChatBox, opts: HubOptions): HubConnection {
       context: o?.context,
       attachments: o?.attachments,
       ctx: o?.ctx,
+      replyTo: o?.replyTo,
     });
   box.onAnswer = (type, p, answer) =>
     void (type === "deny" ? chat.deny(p.pair) : chat.allow(p.pair, answer));

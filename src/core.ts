@@ -45,6 +45,8 @@ import {
   chatText,
   trimHistory,
   cleanCtx,
+  cleanReply,
+  type ReplyRef,
 } from "./protocol.ts";
 import { pageHidden, silenceFor } from "./speak-rules.ts";
 
@@ -67,6 +69,8 @@ export type OutboxEntry = Readonly<{
   attachments?: readonly AttachmentRef[];
   /** Host fields from the box's `beforesend` event (see cleanCtx). */
   ctx?: Record<string, unknown>;
+  /** The line it answers (see cleanReply). */
+  replyTo?: ReplyRef;
   at: number;
   status: "sending" | "failed";
 }>;
@@ -182,6 +186,8 @@ export type Chat = {
       attachments?: readonly AttachmentRef[];
       /** Host fields for the line (a plain JSON object; checked by cleanCtx). */
       ctx?: Record<string, unknown>;
+      /** The line it answers: a quote shown on top of it. */
+      replyTo?: ReplyRef;
     },
   ): boolean;
   /** Send a failed outbox line again. */
@@ -418,6 +424,7 @@ export function createChat(opts: ChatOptions = {}): Chat {
       ...(e.context ? { context: e.context } : {}),
       ...(e.attachments?.length ? { attachments: e.attachments } : {}),
       ...(e.ctx ? { ctx: e.ctx } : {}),
+      ...(e.replyTo ? { replyTo: e.replyTo } : {}),
     });
 
   const sink: TransportSink = {
@@ -460,6 +467,7 @@ export function createChat(opts: ChatOptions = {}): Chat {
       const t = chatText(text);
       if (!t) return false;
       const ctx = cleanCtx(o.ctx);
+      const replyTo = cleanReply(o.replyTo);
       const e = {
         id: newId(),
         text: t,
@@ -468,6 +476,7 @@ export function createChat(opts: ChatOptions = {}): Chat {
         ...(o.context ? { context: o.context } : {}),
         ...(o.attachments?.length ? { attachments: o.attachments } : {}),
         ...(ctx ? { ctx } : {}),
+        ...(replyTo ? { replyTo } : {}),
       };
       if (!sendLine(e)) return false;
       setOutbox((x) => [...x, { ...e, at: now(), status: "sending" }]);

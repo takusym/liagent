@@ -301,6 +301,7 @@ type Chat = {
     to?: string;
     context?: unknown;
     attachments?: unknown;
+    replyTo?: unknown;
   };
 };
 const chats = (ws: FakeSocket) =>
@@ -374,6 +375,29 @@ describe("ChatHub chat", () => {
     const want = [{ id: "u1", name: "a.png", type: "image/png", size: 3 }];
     expect(chats(p).at(-1)?.attachments).toEqual(want);
     expect(chats(agent).at(-1)?.attachments).toEqual(want);
+  });
+
+  it("a line's replyTo is cleaned and kept, from the owner and from an agent's say", async () => {
+    const { page, controller, msg, pairOf } = setup();
+    const p = page();
+    const agent = controller("agent");
+    await msg(p, { type: "allow", pair: pairOf(p) });
+    await msg(p, {
+      type: "chat",
+      id: "r1",
+      text: "yes",
+      replyTo: { id: "q1", who: " Ann ", text: "x".repeat(300), extra: 1 },
+    });
+    const want = { id: "q1", who: "Ann", text: "x".repeat(200) };
+    expect(chats(p).at(-1)?.replyTo).toEqual(want);
+    expect(chats(agent).at(-1)?.replyTo).toEqual(want);
+    await msg(p, { type: "chat", id: "r2", text: "no", replyTo: { who: "no id" } });
+    expect(chats(p).at(-1)?.replyTo).toBeUndefined();
+    await msg(agent, { type: "say", text: "ok", replyTo: { id: "r1", who: "you", text: "yes" } });
+    expect(chats(p).at(-1)).toMatchObject({
+      from: "agent",
+      replyTo: { id: "r1", who: "you", text: "yes" },
+    });
   });
 
   it("a controller's say reaches the pages and is acknowledged", async () => {

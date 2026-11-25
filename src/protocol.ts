@@ -164,7 +164,25 @@ export type ChatMessage = {
    * plain JSON object, at most MAX_CTX characters as JSON. Checked by cleanCtx.
    */
   ctx?: Record<string, unknown>;
+  /** The line it answers (a quote of it): checked by cleanReply. */
+  replyTo?: ReplyRef;
 };
+
+/**
+ * A quote of the line a line answers: its id (to scroll to it), who wrote
+ * it and the start of its text (at most MAX_REPLY_TEXT chars).
+ */
+export type ReplyRef = { id: string; who: string; text: string };
+export const MAX_REPLY_TEXT = 200;
+/** A replyTo as sent: an id, a who and a text, clipped; anything else is undefined. */
+export function cleanReply(v: unknown): ReplyRef | undefined {
+  const r = v as { id?: unknown; who?: unknown; text?: unknown } | null;
+  if (!r || typeof r !== "object") return undefined;
+  const id = typeof r.id === "string" ? r.id.slice(0, 64) : "";
+  const who = typeof r.who === "string" ? r.who.trim().slice(0, MAX_LABEL) : "";
+  const text = typeof r.text === "string" ? r.text.trim().slice(0, MAX_REPLY_TEXT) : "";
+  return id ? { id, who, text } : undefined;
+}
 
 /** Where an owner line came from: "stt" (the box's mic). Absent = typed. */
 export type MessageSource = "stt";
@@ -255,6 +273,8 @@ export type ControllerMessage =
       quiet?: true;
       /** The line's language (BCP-47); dropped unless langTag takes it. */
       lang?: string;
+      /** The line it answers (cleanReply). */
+      replyTo?: ReplyRef;
     }
   | { type: "busy"; to?: string; on?: boolean }
   /** Polish the owner's latest line, when it came from the box's mic (`source: "stt"`). */
@@ -279,6 +299,7 @@ export type PageMessage =
       context?: ChatContext;
       attachments?: AttachmentRef[];
       ctx?: Record<string, unknown>;
+      replyTo?: ReplyRef;
     }
   | {
       type: "result";
@@ -340,6 +361,8 @@ export function parseControllerMessage(
     if (m.quiet === true) value.quiet = true;
     const lang = langTag(m.lang);
     if (lang) value.lang = lang;
+    const replyTo = cleanReply(m.replyTo);
+    if (replyTo) value.replyTo = replyTo;
     return { ok: true, value };
   }
   if (m?.type === "edit") {
@@ -428,6 +451,8 @@ export function parsePageMessage(raw: unknown): PageMessage | null {
     if (attachments) out.attachments = attachments;
     const ctx = cleanCtx(m.ctx);
     if (ctx) out.ctx = ctx;
+    const replyTo = cleanReply(m.replyTo);
+    if (replyTo) out.replyTo = replyTo;
     return out;
   }
   if (m.type === "result") {
