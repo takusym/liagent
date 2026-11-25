@@ -1081,7 +1081,9 @@ textarea::placeholder { color: color-mix(in oklch, currentColor 45%, transparent
 @keyframes drain { to { transform: scaleX(0); } }
 .aim { position: absolute; inset-inline-start: 84px; bottom: 100%; margin-bottom: 4px; max-width: calc(100% - 6rem); display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; }
 .aim > * { pointer-events: auto; }
-.presence { position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%); margin-bottom: 4px; z-index: 2; display: flex; flex-direction: column-reverse; align-items: center; pointer-events: auto; }
+/* Above the mic: the bar's end (trailing mic, the default), its start for a leading mic. */
+.presence { position: absolute; inset-inline-end: 0; bottom: 100%; margin-bottom: 4px; z-index: 2; display: flex; flex-direction: column-reverse; align-items: flex-end; pointer-events: auto; }
+.presence.lead { inset-inline-end: auto; inset-inline-start: 0; align-items: flex-start; }
 .presence[hidden] { display: none; }
 .presence .pstack { display: inline-flex; align-items: center; padding: 2px 4px; border-radius: 12px; background: var(--glass); border: 1px solid var(--line); cursor: pointer; }
 .presence .pstack > .pav + .pav { margin-inline-start: -6px; }
@@ -3949,6 +3951,7 @@ var ChatBox = class extends Base {
 		const where = this.micPlacement;
 		mic.hidden = !(micslot.assignedElements?.().length ?? 0) || where === "hidden";
 		mic.classList.toggle("inside", where === "inside");
+		this.els.presence?.classList.toggle("lead", where === "leading");
 		const [parent, before] = where === "leading" ? [bar, lead] : where === "inside" ? [slot, null] : [bar, this.els.unread];
 		if (mic.parentElement !== parent || mic.nextElementSibling !== before) parent.insertBefore(mic, before);
 		treebtn.hidden = this.treePlacement !== "leading";
@@ -4263,4 +4266,4 @@ function defineChatBox(tag = "liagent-chat") {
 
 //#endregion
 export { wheelScrolls as a, parseLegacyCtx as c, olderLines as i, barWheel as n, memoryFiles as o, defineChatBox as r, defaultCtxView as s, ChatBox as t };
-//# sourceMappingURL=box-Dq4vRvpM.js.map
+//# sourceMappingURL=box-BnNHOYQn.js.map
