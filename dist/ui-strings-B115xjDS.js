@@ -1252,6 +1252,7 @@ const UI_EN = {
 	silent: "Replies silent",
 	minimize: "–  Minimize",
 	restore: "+  Restore",
+	resetPosition: "↘  Reset position",
 	minimizeChat: "Minimize chat",
 	restoreChat: "Restore chat",
 	restoreChatNew: "Restore chat, {n} new",
@@ -1346,6 +1347,7 @@ const UI_ZH = {
 	silent: "不朗读回复",
 	minimize: "–  最小化",
 	restore: "+  还原",
+	resetPosition: "↘  重置位置",
 	minimizeChat: "最小化聊天",
 	restoreChat: "还原聊天",
 	restoreChatNew: "还原聊天，{n} 条新消息",
@@ -1461,6 +1463,7 @@ const UI_JA = {
 	silent: "返信を読み上げない",
 	minimize: "–  最小化",
 	restore: "+  元に戻す",
+	resetPosition: "↘  位置をリセット",
 	minimizeChat: "チャットを最小化",
 	restoreChat: "チャットを元に戻す",
 	restoreChatNew: "チャットを元に戻す（新着 {n} 件）",
@@ -1509,4 +1512,4 @@ const treeDefaults = (lang) => isZh(lang) ? TREE_ZH : isJa(lang) ? TREE_JA : {};
 
 //#endregion
 export { TREE_HYSTERESIS as $, frontierView as A, MINIMIZE_FLOAT_MAX_AGE_MS as B, createTapper as C, isSensitive as Ct, MAX_ID_LEN as D, pageSelection as Dt, LONG_PRESS_MS as E, oneLine as Et, placeBox as F, createDwellTimer as G, READ_RATE_LATIN as H, DWELL_FACTOR as I, minimizeFloat as J, createFloatLife as K, DWELL_MIN_MS as L, shownAgentId as M, ANCHOR_GUTTER_PX as N, SHORT_ID_LEN as O, readSelection as Ot, anchorSide as P, TREE_DRAG_CELLS as Q, FADE_MS as R, createLongPress as S, fileAction as St, FRONTIER_ROWS as T, menuGroups as Tt, countUnread as U, READ_RATE_CJK as V, createArrivals as W, MAX_DETENT as X, readTime as Y, TREE_DETENT_PX as Z, DOUBLE_TAP_MS as _, SELECTION_TTL_MS as _t, UI_ZH as a, indexTree as at, createAxisLock as b, actionsAt as bt, treeDefaults as c, maxDetent as ct, WHEEL_LINE_PX as d, snapDetent as dt, TREE_SNAP as et, createSwipeHandoff as f, END_SLACK_PX as ft, AXIS_LOCK_PX as g, CHAT_FENCE as gt, wheelPixels as h, stillAtEnd as ht, UI_JA as i, height as it, shortId as j, countBadge as k, selectionAction as kt, uiStrings as l, treeNav as lt, splitScroll as m, repinEnd as mt, TREE_ZH as n, dragCells as nt, isJa as o, initialNav as ot, scrollRoom as p, atEndAfter as pt, dwellMs as q, UI_EN as r, dragOffset as rt, isZh as s, isVisible as st, TREE_JA as t, TREE_STRETCH as tt, SWIPE_SLOP_PX as u, detentLevel as ut, DRAG_CLICK_MS as v, SENSITIVE as vt, scrubBack as w, mediaAction as wt, createDragFlag as x, createSelectionMemory as xt, SCRUB_STEP_PX as y, actionEnabled as yt, FLOAT_MAX as z };
-//# sourceMappingURL=ui-strings-CQf0Pbhr.js.map
+//# sourceMappingURL=ui-strings-B115xjDS.js.map

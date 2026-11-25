@@ -2,7 +2,7 @@ import { MAX_ATTACHMENTS, MAX_CHAT, ROOT_NODE, cleanAvatarUrl, cleanCtx, cleanFi
 import { i as silenceFor, r as pageHidden, t as RETIRED_SETTINGS } from "./speak-rules-CuM1k5aH.js";
 import { i as createChat } from "./core-DxJBon4x.js";
 import { a as lineAvatar, i as initialOf, o as pageHint, s as when, t as avatarColors } from "./avatar-BHTNm21C.js";
-import { A as frontierView, C as createTapper, E as LONG_PRESS_MS, Et as oneLine, F as placeBox, J as minimizeFloat, K as createFloatLife, M as shownAgentId, R as FADE_MS, S as createLongPress, T as FRONTIER_ROWS, Tt as menuGroups, U as countUnread, W as createArrivals, at as indexTree, b as createAxisLock, bt as actionsAt, c as treeDefaults, ct as maxDetent, f as createSwipeHandoff, h as wheelPixels, j as shortId, k as countBadge, l as uiStrings, lt as treeNav, m as splitScroll, mt as repinEnd, nt as dragCells, ot as initialNav, pt as atEndAfter, q as dwellMs, rt as dragOffset, st as isVisible, x as createDragFlag, yt as actionEnabled, z as FLOAT_MAX } from "./ui-strings-CQf0Pbhr.js";
+import { A as frontierView, C as createTapper, E as LONG_PRESS_MS, Et as oneLine, F as placeBox, J as minimizeFloat, K as createFloatLife, M as shownAgentId, R as FADE_MS, S as createLongPress, T as FRONTIER_ROWS, Tt as menuGroups, U as countUnread, W as createArrivals, at as indexTree, b as createAxisLock, bt as actionsAt, c as treeDefaults, ct as maxDetent, f as createSwipeHandoff, h as wheelPixels, j as shortId, k as countBadge, l as uiStrings, lt as treeNav, m as splitScroll, mt as repinEnd, nt as dragCells, ot as initialNav, pt as atEndAfter, q as dwellMs, rt as dragOffset, st as isVisible, x as createDragFlag, yt as actionEnabled, z as FLOAT_MAX } from "./ui-strings-B115xjDS.js";
 import { o as aecOn, s as applyAec } from "./aec-HSHx-slU.js";
 import { a as autoSend, c as partialTail, i as afterChange, n as DEBOUNCE_MS, o as enterSends, s as lineBreakSends } from "./input-BEw-AxAo.js";
 import { r as countOpen, s as frontier } from "./state-tree-DMR7TmHF.js";
@@ -1215,7 +1215,8 @@ var ChatBox = class extends Base {
 			"tree-placement",
 			"all-pages",
 			"no-echo-toggle",
-			"collapsed-count"
+			"collapsed-count",
+			"clamp-top"
 		];
 	}
 	/**
@@ -1639,6 +1640,52 @@ var ChatBox = class extends Base {
 		if (v > 0) this.setAttribute("collapsed-count", String(Math.floor(v)));
 		else this.removeAttribute("collapsed-count");
 	}
+	/**
+	* Extra px kept free at the top (below the notch) when the box is dragged
+	* or brought back on screen, e.g. the host's own header. Attribute: clamp-top.
+	*/
+	get clampTop() {
+		const n = Number(this.getAttribute?.("clamp-top"));
+		return Number.isFinite(n) && n > 0 ? n : 0;
+	}
+	set clampTop(v) {
+		if (v > 0) this.setAttribute("clamp-top", String(v));
+		else this.removeAttribute("clamp-top");
+	}
+	/**
+	* Move the box back to its home corner (bottom right) and forget the
+	* dragged position. Also in the menu ("Reset position").
+	*/
+	resetPosition() {
+		this.pos = {
+			x: 0,
+			y: 0
+		};
+		this.style.transform = "";
+		this.write("pos", JSON.stringify(this.pos));
+		this.placeFloat();
+		this.fit();
+		this.moved();
+	}
+	/**
+	* After a drag, a reset or a fit: {type:"liagent-move", detail:{x, y,
+	* rect}} with the offset from home and the bar's rect, so the host can
+	* keep its own UI clear.
+	*/
+	moved() {
+		const b = this.els.bar?.getBoundingClientRect();
+		const rect = b ? {
+			left: b.left,
+			top: b.top,
+			width: b.width,
+			height: b.height
+		} : null;
+		this.dispatchEvent(new CustomEvent("liagent-move", { detail: {
+			x: this.pos.x,
+			y: this.pos.y,
+			rect
+		} }));
+	}
 	/** Where the tree button goes. Attribute: tree-placement. */
 	get treePlacement() {
 		const v = this.getAttribute?.("tree-placement");
@@ -1831,6 +1878,7 @@ var ChatBox = class extends Base {
 		else if (name === "all-pages") this.applyAllPages(this.hasAttribute("all-pages"));
 		else if (name === "no-echo-toggle") this.renderMenu();
 		else if (name === "collapsed-count") this.renderLog();
+		else if (name === "clamp-top") this.fit();
 		else this.renderActions();
 	}
 	applyAllPages(v) {
@@ -2625,7 +2673,7 @@ var ChatBox = class extends Base {
 			const bar = this.els.bar.getBoundingClientRect();
 			const left = bar.left - (this.pos.x - d.x);
 			const top = bar.top - (this.pos.y - d.y);
-			const safeTop = safeInsets().top;
+			const safeTop = safeInsets().top + this.clampTop;
 			this.pos = {
 				x: d.x + Math.max(-left, Math.min(innerWidth - bar.width - left, dx)),
 				y: d.y + Math.max(safeTop - top, Math.min(innerHeight - bar.height - top, dy))
@@ -2640,6 +2688,7 @@ var ChatBox = class extends Base {
 			this.markDrag.dragEnded();
 			this.write("pos", JSON.stringify(this.pos));
 			this.placeFloat();
+			this.moved();
 		};
 		el.addEventListener("pointerup", end);
 		el.addEventListener("pointercancel", () => {
@@ -2662,7 +2711,7 @@ var ChatBox = class extends Base {
 		const box = this.els.box?.getBoundingClientRect();
 		if (!bar || !box || !bar.width) return;
 		const row = this.open ? box : bar;
-		const top = safeInsets().top;
+		const top = safeInsets().top + this.clampTop;
 		const dx = row.left < 0 ? -row.left : row.right > innerWidth ? innerWidth - row.right : 0;
 		const dy = bar.top < top ? top - bar.top : bar.bottom > innerHeight ? innerHeight - bar.bottom : 0;
 		if (!dx && !dy) return;
@@ -2672,6 +2721,7 @@ var ChatBox = class extends Base {
 		};
 		this.style.transform = `translate(${this.pos.x}px, ${this.pos.y}px)`;
 		this.write("pos", JSON.stringify(this.pos));
+		this.moved();
 	}
 	/**
 	* The tree button: a tap opens or closes the tree; a horizontal drag (axis
@@ -4027,6 +4077,17 @@ var ChatBox = class extends Base {
 			this.setOpen(!this.open);
 		});
 		menu.append(min);
+		if (this.pos.x || this.pos.y) {
+			const home = document.createElement("button");
+			home.type = "button";
+			home.setAttribute("role", "menuitem");
+			home.textContent = this.ui.resetPosition;
+			home.addEventListener("click", () => {
+				this.setPanel("none");
+				this.resetPosition();
+			});
+			menu.append(home);
+		}
 		for (const x of this._sessions) {
 			const row = document.createElement("div");
 			row.className = "sess";
@@ -4184,4 +4245,4 @@ function defineChatBox(tag = "liagent-chat") {
 
 //#endregion
 export { wheelScrolls as a, parseLegacyCtx as c, olderLines as i, barWheel as n, memoryFiles as o, defineChatBox as r, defaultCtxView as s, ChatBox as t };
-//# sourceMappingURL=box-Diy5zYGk.js.map
+//# sourceMappingURL=box-C3_ubbA4.js.map

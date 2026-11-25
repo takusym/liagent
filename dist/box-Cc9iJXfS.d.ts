@@ -1,5 +1,5 @@
 import { AttachmentRef, AvatarSrc, ChatContext, ChatMessage, EditedEvent, MessageSource, PageInfo, PairInfo, PresenceDelta, PresenceFrame, PresenceMember, Sender } from "./protocol.js";
-import { b as ChatAction, f as UiStrings, r as SpeakMeta } from "./speak-rules-QB3JSQHP.js";
+import { b as ChatAction, f as UiStrings, r as SpeakMeta } from "./speak-rules-QC20JIIT.js";
 import { a as TreeSource, o as TreeStrings } from "./tree-BIwvNlIR.js";
 import { r as VoicePreference } from "./voice-pick-Dq1Ff99y.js";
 
@@ -600,6 +600,23 @@ declare class ChatBox extends Base {
    */
   get collapsedCount(): number;
   set collapsedCount(v: number);
+  /**
+   * Extra px kept free at the top (below the notch) when the box is dragged
+   * or brought back on screen, e.g. the host's own header. Attribute: clamp-top.
+   */
+  get clampTop(): number;
+  set clampTop(v: number);
+  /**
+   * Move the box back to its home corner (bottom right) and forget the
+   * dragged position. Also in the menu ("Reset position").
+   */
+  resetPosition(): void;
+  /**
+   * After a drag, a reset or a fit: {type:"liagent-move", detail:{x, y,
+   * rect}} with the offset from home and the bar's rect, so the host can
+   * keep its own UI clear.
+   */
+  private moved;
   /** Where the tree button goes. Attribute: tree-placement. */
   get treePlacement(): TreePlacement;
   set treePlacement(v: TreePlacement);
@@ -917,4 +934,4 @@ declare class ChatBox extends Base {
 declare function defineChatBox(tag?: string): typeof ChatBox;
 //#endregion
 export { parseLegacyCtx as A, HostState as B, FilesUsage as C, CtxRenderer as D, memoryFiles as E, ChatEvents as F, connectVoice as G, RAN_MS as H, ChatOptions as I, createChat as K, ChatSpeaker as L, AllowAnswer as M, CHAT_STRINGS as N, CtxView as O, Chat as P, ChatState as R, FilesListing as S, StoredFile as T, Transport as U, OutboxEntry as V, TransportSink as W, hashId as _, MicPlacement as a, ChatFiles as b, barWheel as c, wheelScrolls as d, pageHint as f, avatarSrcs as g, avatarColors as h, ChatVoice as i, BeforeSendDetail as j, defaultCtxView as k, defineChatBox as l, LineAvatar as m, AnswerType as n, ScrollState as o, when as p, userActive as q, ChatBox as r, TreePlacement as s, Answer as t, olderLines as u, initialOf as v, MemoryFilesOptions as w, FileItemAction as x, lineAvatar as y, ChatStatus as z };
-//# sourceMappingURL=box-DQExMXJa.d.ts.map
+//# sourceMappingURL=box-Cc9iJXfS.d.ts.map

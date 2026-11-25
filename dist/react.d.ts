@@ -1,4 +1,4 @@
-import { I as ChatOptions, P as Chat, R as ChatState } from "./box-DQExMXJa.js";
+import { I as ChatOptions, P as Chat, R as ChatState } from "./box-Cc9iJXfS.js";
 import { HubOptions } from "./client.js";
 import { n as DraftOptions, r as DraftState, t as Draft } from "./draft-joi5pxvH.js";
 
